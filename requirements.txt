@@ -1,0 +1,9 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+pywin32>=306
+pyaudio>=0.2.11
+funasr>=1.0.0
+modelscope>=1.10.0

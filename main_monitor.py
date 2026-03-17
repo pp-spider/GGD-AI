@@ -30,6 +30,7 @@ class GooseGooseDuckMonitor:
         self.audio_analyzer = None
         self.is_running = False
         self._lock = threading.Lock()
+        self.current_round = 1  # 当前轮数
 
     def _on_digit_change(self, new_digit, old_digit):
         """
@@ -41,9 +42,9 @@ class GooseGooseDuckMonitor:
         """
         print(f"[Main] 发言玩家切换: {old_digit} -> {new_digit}")
 
-        # 更新音频分析器的当前发言玩家
+        # 更新音频分析器的当前发言玩家（传递当前轮数）
         if self.audio_analyzer:
-            self.audio_analyzer.set_speaker(new_digit)
+            self.audio_analyzer.set_speaker(new_digit, self.current_round)
 
     def _on_new_record(self, record):
         """
@@ -70,11 +71,19 @@ class GooseGooseDuckMonitor:
         print(f"已选择窗口: {self.window_title} (句柄: {self.hwnd})")
         return True
 
-    def start(self):
-        """启动监控"""
+    def start(self, preloaded_model=None, round_num: int = 1):
+        """启动监控
+
+        Args:
+            preloaded_model: 预加载的 FunASR 模型实例（可选，用于避免重复加载模型）
+            round_num: 当前轮数，默认为1
+        """
         if self.hwnd is None:
             print("错误: 未选择窗口，请先调用select_window()")
             return False
+
+        # 设置当前轮数
+        self.current_round = round_num
 
         print("\n" + "=" * 50)
         print("正在启动监控...")
@@ -82,11 +91,12 @@ class GooseGooseDuckMonitor:
 
         self.is_running = True
 
-        # 1. 初始化音频分析器
+        # 1. 初始化音频分析器（使用预加载的模型）
         print("[1/3] 初始化语音监控...")
         self.audio_analyzer = GooseGooseDuckAudioAnalyzer(
             on_new_record=self._on_new_record,
-            auto_save=True
+            auto_save=True,
+            preloaded_model=preloaded_model
         )
 
         # 2. 初始化画面监控器

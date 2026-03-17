@@ -19,13 +19,14 @@ from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 
 class GooseGooseDuckAudioAnalyzer:
-    def __init__(self, on_new_record=None, auto_save=True):
+    def __init__(self, on_new_record=None, auto_save=True, preloaded_model=None):
         """
         初始化音频分析器
 
         Args:
             on_new_record: 当有新记录时的回调函数，接收record字典
             auto_save: 是否自动保存到JSON文件（每次识别后立即保存）
+            preloaded_model: 预加载的 FunASR 模型实例（可选，用于避免重复加载模型）
         """
         # 音频参数
         self.format = pyaudio.paInt16
@@ -36,22 +37,27 @@ class GooseGooseDuckAudioAnalyzer:
         # 使用VB-Cable Output作为输入设备
         self.device_index = self._find_vbcable_device()
 
-        # 初始化 FunASR 模型（用于语音转文字）
-        print("加载 FunASR 模型...")
-        # 自动下载模型到本地缓存
-        model_dir = os.path.join(os.path.dirname(__file__), "models")
-        os.makedirs(model_dir, exist_ok=True)
+        # 使用预加载的模型或重新加载
+        if preloaded_model is not None:
+            print("使用预加载的 FunASR 模型")
+            self.funasr_model = preloaded_model
+        else:
+            # 初始化 FunASR 模型（用于语音转文字）
+            print("加载 FunASR 模型...")
+            # 自动下载模型到本地缓存
+            model_dir = os.path.join(os.path.dirname(__file__), "models")
+            os.makedirs(model_dir, exist_ok=True)
 
-        # 使用 Paraformer-zh 模型（中文识别效果最佳）
-        # 同时加载 VAD 和标点恢复模型，形成完整链路
-        self.funasr_model = AutoModel(
-            model="paraformer-zh",
-            vad_model="fsmn-vad",
-            punc_model="ct-punc",
-            # 可选：指定本地缓存路径
-            # model_path=model_dir,
-        )
-        print("FunASR 模型加载完成！")
+            # 使用 Paraformer-zh 模型（中文识别效果最佳）
+            # 同时加载 VAD 和标点恢复模型，形成完整链路
+            self.funasr_model = AutoModel(
+                model="paraformer-zh",
+                vad_model="fsmn-vad",
+                punc_model="ct-punc",
+                # 可选：指定本地缓存路径
+                # model_path=model_dir,
+            )
+            print("FunASR 模型加载完成！")
 
         self.is_recording = False
 
@@ -82,34 +88,36 @@ class GooseGooseDuckAudioAnalyzer:
                 return i
         raise Exception("未找到VB-Cable Output设备，请先安装虚拟声卡")
 
-    def set_speaker(self, speaker):
+    def set_speaker(self, speaker, round_num: int = 1):
         """
         设置当前发言玩家（由外部画面监控调用）
         当玩家切换时，触发累积语音的立即识别
 
         Args:
             speaker: 玩家标识，如 '02', '06' 等
+            round_num: 当前轮数，默认为1
         """
         with self._speaker_lock:
             if speaker != self._current_speaker:
                 print(f"[AudioAnalyzer] 发言玩家更新: {self._current_speaker} -> {speaker}")
 
                 # 玩家切换时，将之前累积的语音转文字
+                buffer_copy = None
                 with self._buffer_lock:
                     if len(self._audio_buffer) > 0:
                         # 复制缓冲区并清空
                         buffer_copy = self._audio_buffer.copy()
                         self._audio_buffer = []
 
-                        # 使用切换前的玩家标识进行识别
-                        prev_speaker = self._current_speaker if self._current_speaker != "unknown" else speaker
-
-                        # 在锁外异步处理，避免阻塞
-                        threading.Thread(
-                            target=self._process_speech,
-                            args=(buffer_copy, prev_speaker),
-                            daemon=True
-                        ).start()
+                # 在锁外异步处理，避免阻塞
+                if buffer_copy:
+                    # 使用切换前的玩家标识进行识别
+                    prev_speaker = self._current_speaker if self._current_speaker != "unknown" else speaker
+                    threading.Thread(
+                        target=self._process_speech,
+                        args=(buffer_copy, prev_speaker, round_num),
+                        daemon=True
+                    ).start()
 
                 # 更新当前玩家
                 self._current_speaker = speaker
@@ -182,16 +190,17 @@ class GooseGooseDuckAudioAnalyzer:
 
         return "suspicious" if score > 0 else "trust" if score < 0 else "neutral"
 
-    def _process_speech(self, audio_frames, speaker):
+    def _process_speech(self, audio_frames, speaker, round_num: int = 1):
         """
         处理语音并保存
 
         Args:
             audio_frames: 音频帧列表
             speaker: 发言玩家
+            round_num: 当前轮数，默认为1
         """
         duration = len(audio_frames) * self.chunk / self.rate
-        print(f"[语音识别] 处理: {duration:.1f}秒, 玩家: {speaker}")
+        print(f"[语音识别] 处理: {duration:.1f}秒, 玩家: {speaker}, 轮数: {round_num}")
 
         text = self.transcribe_audio(audio_frames)
 
@@ -204,13 +213,14 @@ class GooseGooseDuckAudioAnalyzer:
                 "text": text,
                 "emotion": emotion,
                 "speaker": speaker,
-                "duration": round(duration, 2)
+                "duration": round(duration, 2),
+                "round": round_num
             }
 
             with self._log_lock:
                 self.conversation_log.append(record)
 
-            print(f"[{timestamp}] [{speaker}] {emotion}: {text}")
+            print(f"[{timestamp}] [第{round_num}轮] [{speaker}] {emotion}: {text}")
 
             # 触发回调
             if self.on_new_record:
@@ -254,10 +264,15 @@ class GooseGooseDuckAudioAnalyzer:
             print("停止录制")
         finally:
             # 处理剩余语音（使用当前玩家）
+            buffer_to_process = None
             with self._buffer_lock:
                 if self._audio_buffer:
-                    speaker = self.get_speaker()
-                    self._process_speech(self._audio_buffer, speaker)
+                    buffer_to_process = self._audio_buffer.copy()
+                    self._audio_buffer = []
+
+            if buffer_to_process:
+                speaker = self.get_speaker()
+                self._process_speech(buffer_to_process, speaker)
 
             stream.stop_stream()
             stream.close()

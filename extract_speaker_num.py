@@ -4,8 +4,9 @@ import os
 import threading
 import time
 
-# 模板路径
-template_path = './template_imgs'
+# 模板路径 - 使用脚本所在目录的绝对路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+template_path = os.path.join(BASE_DIR, 'template_imgs')
 
 # 加载所有模板（全局缓存）
 _templates = None
@@ -68,23 +69,35 @@ def extract_player_num_from_array(img_gray, save_debug=True, debug_prefix=""):
         if total_square * 0.01 < square < total_square * 0.02 and white_ratio > 0.7 and 2.0 < w / h < 3.0:
             # 保存调试图片
             if save_debug:
-                os.makedirs('./temp_images', exist_ok=True)
-                cv2.imwrite(f'./temp_images/{debug_prefix}_card_{i}.png', img_gray[y:y + h, x:x + w])
-                cv2.imwrite(f'./temp_images/{debug_prefix}_card_{i}_.png',
+                temp_dir = os.path.join(BASE_DIR, 'temp_images')
+                os.makedirs(temp_dir, exist_ok=True)
+                cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}.png'), img_gray[y:y + h, x:x + w])
+                cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}_.png'),
                            img_gray[y:int(y + h*0.3), x:int(x + w*0.15)])
 
             # 在卡片顶部区域进行模板匹配
             card_top = img_gray[y:int(y + h*0.3), x:int(x + w*0.15)]
+
+            best_digit = None
+            best_score = 0.0
+            threshold = 0.8
 
             for digit, template in templates.items():
                 if template is None:
                     continue
                 # 模板匹配
                 res = cv2.matchTemplate(card_top, template, cv2.TM_CCOEFF_NORMED)
-                threshold = 0.8
-                loc = np.where(res >= threshold)
-                if len(loc[0]) > 0:
-                    return digit
+                # 获取最大匹配分数
+                _, max_val, _, _ = cv2.minMaxLoc(res)
+
+                # 记录全局最大
+                if max_val > best_score:
+                    best_score = max_val
+                    best_digit = digit
+
+            # 只有全局最大分数超过阈值才返回
+            if best_score >= threshold and best_digit is not None:
+                return best_digit
     return None
 
 
@@ -103,7 +116,7 @@ def extract_player_num(image_path):
     if img is None:
         print("图像读取失败")
         return None
-    return extract_player_num_from_array(img, save_debug=True, debug_prefix=file_name.split(".")[0])
+    return extract_player_num_from_array(img, save_debug=False, debug_prefix=file_name.split(".")[0])
 
 
 class SpeakerDigitMonitor:
