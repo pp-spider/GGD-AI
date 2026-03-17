@@ -29,7 +29,7 @@ const MonitorContext = createContext<MonitorContextValue | null>(null);
 export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState("正在加载语音识别模型...");
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [currentRound, setCurrentRound] = useState(1);
+  const [currentRound, setCurrentRound] = useState(0);
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
   const [windowTitle, setWindowTitle] = useState<string | null>(null);

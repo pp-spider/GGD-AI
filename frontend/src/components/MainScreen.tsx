@@ -6,7 +6,6 @@ const MainScreen: React.FC = () => {
     isMonitoring,
     startMonitor,
     stopMonitor,
-    currentRound,
     currentSpeaker,
     windowTitle,
     records,
@@ -60,7 +59,7 @@ const MainScreen: React.FC = () => {
       <div className="title-bar">
         <div className="title-content">
           <span className="window-name">
-            🪟 {formatWindowTitle(windowTitle)}
+            {formatWindowTitle(windowTitle)}
           </span>
           {currentSpeaker && (
             <span className="current-speaker">
@@ -107,7 +106,6 @@ const MainScreen: React.FC = () => {
         >
           {isMonitoring ? "⏸ 结束监听" : "▶ 开始监听"}
         </button>
-        <div className="round-info">当前: 第{currentRound}轮</div>
       </div>
     </div>
   );

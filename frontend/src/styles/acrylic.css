@@ -106,13 +106,24 @@ body {
   padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
   background: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid var(--border-light);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
   -webkit-app-region: drag;
+}
+
+.title-content {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.window-name {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 /* 当前发言玩家 */
@@ -122,6 +133,8 @@ body {
   background: rgba(0, 120, 212, 0.2);
   padding: 4px 12px;
   border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 消息容器 */
