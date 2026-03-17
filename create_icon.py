@@ -27,9 +27,9 @@ for size in sizes:
     images.append(img)
 
 # 保存为 ICO
-images[0].save('D:/PythonProjects/GGD-AI/src-tauri/icons/icon.ico',
+images[0].save('D:/PythonProjects/GGD-AI/src-tauri/icons/icon1.ico',
                format='ICO', sizes=[(s, s) for s in sizes])
-print('icon.ico created successfully')
+print('icon1.ico created successfully')
 
 # 同时创建 PNG 图标
 for size in [32, 128]:

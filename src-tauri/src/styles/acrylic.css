@@ -1,29 +1,29 @@
 :root {
-  /* 背景层 */
-  --acrylic-bg: rgba(255, 255, 255, 0.08);
-  --acrylic-bg-dark: rgba(0, 0, 0, 0.4);
+  /* 背景层 - 米白色磨砂玻璃 */
+  --acrylic-bg: rgba(255, 253, 250, 0.72);
+  --acrylic-bg-dark: rgba(245, 240, 232, 0.85);
   --acrylic-backdrop: blur(20px) saturate(180%);
 
-  /* 主色调 */
-  --fluent-blue: #0078D4;
-  --fluent-green: #107C10;
-  --fluent-red: #D13438;
-  --fluent-yellow: #FFB900;
-  --fluent-purple: #8764B8;
+  /* 主色调 - 柔和的暖色调 */
+  --fluent-blue: #5B8BD4;
+  --fluent-green: #5A9A5A;
+  --fluent-red: #D46A6A;
+  --fluent-yellow: #D4A05B;
+  --fluent-purple: #9B8BD4;
 
   /* 情绪颜色 */
-  --emotion-suspicious: #D13438;
-  --emotion-trust: #107C10;
-  --emotion-neutral: #605E5C;
+  --emotion-suspicious: #D46A6A;
+  --emotion-trust: #5A9A5A;
+  --emotion-neutral: #8C8782;
 
-  /* 文字 */
-  --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-disabled: rgba(255, 255, 255, 0.4);
+  /* 文字 - 深色系用于对比 */
+  --text-primary: rgba(60, 55, 50, 0.95);
+  --text-secondary: rgba(100, 95, 90, 0.75);
+  --text-disabled: rgba(140, 135, 130, 0.5);
 
-  /* 边框 */
-  --border-light: rgba(255, 255, 255, 0.1);
-  --border-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* 边框 - 柔和的米白色 */
+  --border-light: rgba(255, 255, 255, 0.5);
+  --border-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 
   /* 过渡动画 */
   --transition-fast: 0.15s ease;
@@ -36,53 +36,55 @@
   backdrop-filter: var(--acrylic-backdrop);
   -webkit-backdrop-filter: var(--acrylic-backdrop);
   border: 1px solid var(--border-light);
-  border-radius: 12px;
-  box-shadow: var(--border-shadow);
+  border-radius: 16px;
+  box-shadow: var(--border-shadow),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6);
   transition: transform var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .acrylic-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-/* 深色磨砂玻璃 */
+/* 深色磨砂玻璃 - 在浅色主题中实际上是更浓的米白 */
 .acrylic-card-dark {
   background: var(--acrylic-bg-dark);
   backdrop-filter: var(--acrylic-backdrop);
   -webkit-backdrop-filter: var(--acrylic-backdrop);
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: var(--border-shadow);
 }
 
 /* 主按钮 */
 .btn-primary {
-  background: linear-gradient(135deg, #0078D4, #106EBE);
+  background: linear-gradient(135deg, #6B9BD4, #4A7BC0);
   color: white;
-  border-radius: 20px;
+  border-radius: 24px;
   padding: 12px 32px;
   border: none;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4);
+  box-shadow: 0 4px 16px rgba(91, 139, 212, 0.35);
   transition: all var(--transition-fast);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #106EBE, #005A9E);
-  box-shadow: 0 6px 16px rgba(0, 120, 212, 0.5);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #7AABE4, #5A8BD0);
+  box-shadow: 0 6px 20px rgba(91, 139, 212, 0.45);
+  transform: translateY(-2px);
 }
 
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.4);
+  box-shadow: 0 4px 12px rgba(91, 139, 212, 0.35);
 }
 
 .btn-primary:disabled {
-  background: linear-gradient(135deg, #6c757d, #5a6268);
+  background: linear-gradient(135deg, #B8B4AC, #A8A49C);
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
@@ -90,45 +92,48 @@
 
 /* 危险按钮(停止) */
 .btn-danger {
-  background: linear-gradient(135deg, #D13438, #A4262C);
+  background: linear-gradient(135deg, #D47A7A, #C05A5A);
   color: white;
-  border-radius: 20px;
+  border-radius: 24px;
   padding: 12px 32px;
   border: none;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(209, 52, 56, 0.4);
+  box-shadow: 0 4px 16px rgba(212, 106, 106, 0.35);
   transition: all var(--transition-fast);
 }
 
 .btn-danger:hover {
-  background: linear-gradient(135deg, #E74C3C, #C0392B);
-  box-shadow: 0 6px 16px rgba(209, 52, 56, 0.5);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #E48A8A, #D06A6A);
+  box-shadow: 0 6px 20px rgba(212, 106, 106, 0.45);
+  transform: translateY(-2px);
 }
 
 .btn-danger:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(209, 52, 56, 0.4);
+  box-shadow: 0 4px 12px rgba(212, 106, 106, 0.35);
 }
 
 /* 次要按钮 */
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.6);
   color: var(--text-primary);
-  border-radius: 20px;
+  border-radius: 24px;
   padding: 12px 32px;
-  border: 1px solid var(--border-light);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  backdrop-filter: blur(4px);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 /* 进度动画 */
@@ -160,7 +165,7 @@
 
 .status-indicator.active {
   background-color: var(--fluent-green);
-  box-shadow: 0 0 8px var(--fluent-green);
+  box-shadow: 0 0 8px rgba(90, 154, 90, 0.5);
 }
 
 .status-indicator.inactive {
@@ -182,35 +187,37 @@
 }
 
 .emotion-tag.suspicious {
-  background-color: rgba(209, 52, 56, 0.2);
-  color: #FF6B6B;
+  background-color: rgba(212, 106, 106, 0.15);
+  color: #D46A6A;
 }
 
 .emotion-tag.trust {
-  background-color: rgba(16, 124, 16, 0.2);
-  color: #69DB7C;
+  background-color: rgba(90, 154, 90, 0.15);
+  color: #5A9A5A;
 }
 
 .emotion-tag.neutral {
-  background-color: rgba(96, 94, 92, 0.2);
-  color: #ADB5BD;
+  background-color: rgba(140, 135, 130, 0.15);
+  color: #8C8782;
 }
 
 /* 输入框样式 */
 .acrylic-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
   padding: 10px 16px;
   color: var(--text-primary);
   font-size: 14px;
   transition: all var(--transition-fast);
+  backdrop-filter: blur(4px);
 }
 
 .acrylic-input:focus {
   outline: none;
   border-color: var(--fluent-blue);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(91, 139, 212, 0.15);
 }
 
 .acrylic-input::placeholder {
@@ -224,15 +231,15 @@
 }
 
 .acrylic-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.04);
   border-radius: 3px;
 }
 
 .acrylic-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
 
 .acrylic-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.25);
 }

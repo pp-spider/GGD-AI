@@ -15,8 +15,8 @@ body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-primary, rgba(255, 255, 255, 0.95));
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: var(--text-primary, rgba(60, 55, 50, 0.95));
+  background: linear-gradient(135deg, #E8E2D9 0%, #D9D2C5 50%, #CDC5B8 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -29,13 +29,13 @@ code, pre {
 
 /* 链接样式 */
 a {
-  color: var(--fluent-blue, #0078D4);
+  color: var(--fluent-blue, #5B8BD4);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: #4aa3f5;
+  color: #7AABE4;
   text-decoration: underline;
 }
 
@@ -62,22 +62,22 @@ img {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* 选中文字样式 */
 ::selection {
-  background: rgba(0, 120, 212, 0.4);
-  color: white;
+  background: rgba(91, 139, 212, 0.3);
+  color: var(--text-primary);
 }
 
 /* 基础布局 */
@@ -188,7 +188,7 @@ html {
 
 /* 焦点样式 */
 :focus-visible {
-  outline: 2px solid var(--fluent-blue, #0078D4);
+  outline: 2px solid var(--fluent-blue, #5B8BD4);
   outline-offset: 2px;
 }
 
@@ -199,7 +199,7 @@ html {
 
 /* 玻璃拟态背景 */
 .glass-bg {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 253, 250, 0.65);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

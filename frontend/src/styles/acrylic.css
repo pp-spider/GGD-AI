@@ -1,18 +1,21 @@
-/* Fluent Acrylic 样式 */
+/* Fluent Acrylic 样式 - 深色主题 */
 
 :root {
   /* 背景层 */
   --acrylic-bg: rgba(255, 255, 255, 0.08);
+  --acrylic-bg-hover: rgba(255, 255, 255, 0.12);
   --acrylic-backdrop: blur(20px) saturate(180%);
 
   /* 主色调 */
   --fluent-blue: #0078d4;
   --fluent-green: #107c10;
   --fluent-red: #d13438;
+  --fluent-yellow: #ffb900;
 
   /* 文字 */
   --text-primary: rgba(255, 255, 255, 0.95);
   --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.4);
 
   /* 边框 */
   --border-light: rgba(255, 255, 255, 0.1);
@@ -28,7 +31,8 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  background: #1e1e1e;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   overflow: hidden;
 }
@@ -50,7 +54,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
 
 .init-card {
@@ -90,7 +94,7 @@ body {
 /* 主页面 */
 .main-screen {
   width: 350px;
-  height: 520px;
+  height: 650px;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #2d2d3a 0%, #1e1e2e 100%);
@@ -102,14 +106,16 @@ body {
   padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   background: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid var(--border-light);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text-primary);
   -webkit-app-region: drag;
 }
 
+/* 当前发言玩家 */
 .current-speaker {
   font-size: 12px;
   color: var(--fluent-blue);
@@ -139,6 +145,10 @@ body {
 .messages-container::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* 轮数分隔线 */

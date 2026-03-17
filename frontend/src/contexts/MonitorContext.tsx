@@ -17,6 +17,7 @@ interface MonitorContextValue {
   isMonitoring: boolean;
   currentRound: number;
   currentSpeaker: string | null;
+  windowTitle: string | null;
   records: Record[];
   initSystem: () => Promise<any>;
   startMonitor: () => Promise<void>;
@@ -31,6 +32,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const [currentRound, setCurrentRound] = useState(1);
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
+  const [windowTitle, setWindowTitle] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const nextIdRef = useRef(1);
   // 用于防止 StrictMode 双重渲染导致重复连接
@@ -168,20 +170,9 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   // 开始监听
   const startMonitor = useCallback(async () => {
     console.log("[MonitorContext] 开始监听流程...");
+
     try {
-      console.log("[MonitorContext] 1. 选择窗口...");
-      const response = await fetch(`${API_BASE}/api/select-window`, {
-        method: "POST",
-      });
-      const data = await response.json();
-      console.log("[MonitorContext] 选择窗口结果:", data);
-
-      if (data.error || data.status === "cancelled") {
-        console.log("[MonitorContext] 用户取消选择窗口");
-        return;
-      }
-
-      console.log("[MonitorContext] 2. 发送启动命令...");
+      console.log("[MonitorContext] 发送启动命令...");
       const startResponse = await fetch(`${API_BASE}/api/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,9 +181,16 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
       const startData = await startResponse.json();
       console.log("[MonitorContext] 启动命令结果:", startData);
 
-      setCurrentRound((prev) => prev + 1);
-      setIsMonitoring(true);
-      console.log("[MonitorContext] 监听启动完成");
+      if (startData.status === "success") {
+        setCurrentRound((prev) => prev + 1);
+        setIsMonitoring(true);
+        if (startData.window_title) {
+          setWindowTitle(startData.window_title);
+        }
+        console.log("[MonitorContext] 监听启动完成");
+      } else {
+        console.error("[MonitorContext] 启动失败:", startData);
+      }
     } catch (error) {
       console.error("[MonitorContext] 启动监听失败:", error);
     }
@@ -224,6 +222,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
     isMonitoring,
     currentRound,
     currentSpeaker,
+    windowTitle,
     records,
     initSystem,
     startMonitor,

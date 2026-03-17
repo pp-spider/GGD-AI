@@ -2,10 +2,23 @@ import React, { useRef, useEffect } from "react";
 import { useMonitor } from "../hooks/useMonitor";
 
 const MainScreen: React.FC = () => {
-  const { isMonitoring, startMonitor, stopMonitor, currentRound, currentSpeaker, records } = useMonitor();
+  const {
+    isMonitoring,
+    startMonitor,
+    stopMonitor,
+    currentRound,
+    currentSpeaker,
+    windowTitle,
+    records,
+  } = useMonitor();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  console.log("[MainScreen] 渲染 - 当前记录数:", records.length, "当前玩家:", currentSpeaker);
+  console.log(
+    "[MainScreen] 渲染 - 当前记录数:",
+    records.length,
+    "当前玩家:",
+    currentSpeaker
+  );
 
   // 自动滚动到底部
   useEffect(() => {
@@ -31,19 +44,42 @@ const MainScreen: React.FC = () => {
 
   console.log("[MainScreen] 分组记录:", Object.keys(groupedRecords), "轮");
 
+  // 格式化窗口标题，截取主要部分
+  const formatWindowTitle = (title: string | null) => {
+    if (!title) return "未选择窗口";
+    // 如果包含 "Goose Goose Duck"，简化为游戏名
+    if (title.includes("Goose Goose Duck")) return "Goose Goose Duck";
+    if (title.includes("鹅鸭杀")) return "鹅鸭杀";
+    // 否则返回前15个字符
+    return title.length > 15 ? title.slice(0, 15) + "..." : title;
+  };
+
   return (
     <div className="main-screen">
+      {/* 标题栏 - 显示窗口名称和当前发言玩家 */}
       <div className="title-bar">
-        <span>🎮 鹅鸭杀发言监听助手</span>
-        {currentSpeaker && (
-          <span className="current-speaker">🔊 {currentSpeaker}玩家发言中...</span>
-        )}
+        <div className="title-content">
+          <span className="window-name">
+            🪟 {formatWindowTitle(windowTitle)}
+          </span>
+          {currentSpeaker && (
+            <span className="current-speaker">
+              🔊 {currentSpeaker}玩家发言中
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="messages-container">
         {records.length === 0 && (
-          <div style={{ textAlign: "center", color: "rgba(255,255,255,0.5)", padding: "20px" }}>
-            暂无发言记录
+          <div
+            style={{
+              textAlign: "center",
+              color: "rgba(255,255,255,0.5)",
+              padding: "40px 20px",
+            }}
+          >
+            点击"开始监听"开始识别游戏发言
           </div>
         )}
 

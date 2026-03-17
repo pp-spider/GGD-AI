@@ -458,6 +458,13 @@ async def select_monitor_window():
 @app.post("/api/start")
 async def start_monitoring(data: StartMonitoringRequest):
     """开始监听"""
+    # 如果未选择窗口，自动弹出选择器
+    if controller.monitor.hwnd is None:
+        logger.info("未选择窗口，自动弹出选择器...")
+        window_info = await controller.select_window()
+        if window_info is None:
+            return {"status": "cancelled", "message": "用户取消选择窗口"}
+
     result = await controller.start(
         round_num=data.round,
         auto_save=data.auto_save
@@ -466,7 +473,8 @@ async def start_monitoring(data: StartMonitoringRequest):
         return {
             "status": "success",
             "message": "监控已启动",
-            "round": data.round
+            "round": data.round,
+            "window_title": controller.monitor.window_title
         }
     raise HTTPException(status_code=500, detail="启动监控失败")
 
