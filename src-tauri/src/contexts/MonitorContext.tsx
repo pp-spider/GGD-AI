@@ -144,7 +144,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const start = useCallback(async () => {
     setIsLoading(true);
     try {
-      const newRound = isMonitoring ? currentRound : currentRound + 1;
+      const newRound = currentRound;
       await apiCall('/start', 'POST', { round: newRound, auto_save: true });
       setIsMonitoring(true);
       setCurrentRound(newRound);
