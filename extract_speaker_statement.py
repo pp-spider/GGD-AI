@@ -19,24 +19,19 @@ from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 
 class GooseGooseDuckAudioAnalyzer:
-    def __init__(self, on_new_record=None, auto_save=True, segment_duration=5.0):
+    def __init__(self, on_new_record=None, auto_save=True):
         """
         初始化音频分析器
 
         Args:
             on_new_record: 当有新记录时的回调函数，接收record字典
-            auto_save: 是否自动保存到JSON文件（每次分段识别后立即保存）
-            segment_duration: 分段识别时长（秒），默认3秒
+            auto_save: 是否自动保存到JSON文件（每次识别后立即保存）
         """
         # 音频参数
         self.format = pyaudio.paInt16
         self.channels = 2  # 立体声（鹅鸭杀游戏语音是立体声）
         self.rate = 44100
         self.chunk = 1024
-
-        # 分段时长
-        self.segment_duration = segment_duration
-        self.segment_chunks = int(self.rate * segment_duration / self.chunk)
 
         # 使用VB-Cable Output作为输入设备
         self.device_index = self._find_vbcable_device()
@@ -68,11 +63,9 @@ class GooseGooseDuckAudioAnalyzer:
         self._current_speaker = "unknown"
         self._speaker_lock = threading.Lock()
 
-        # 音频缓冲区（用于累积语音）
+        # 音频缓冲区（用于累积语音，直到玩家切换）
         self._audio_buffer = []
         self._buffer_lock = threading.Lock()
-        self._speaker_changed = False  # 标记玩家是否切换
-        self._last_speaker = "unknown"
 
         # 回调和自动保存
         self.on_new_record = on_new_record
@@ -92,7 +85,7 @@ class GooseGooseDuckAudioAnalyzer:
     def set_speaker(self, speaker):
         """
         设置当前发言玩家（由外部画面监控调用）
-        当玩家切换时，触发剩余语音的立即识别
+        当玩家切换时，触发累积语音的立即识别
 
         Args:
             speaker: 玩家标识，如 '02', '06' 等
@@ -100,10 +93,25 @@ class GooseGooseDuckAudioAnalyzer:
         with self._speaker_lock:
             if speaker != self._current_speaker:
                 print(f"[AudioAnalyzer] 发言玩家更新: {self._current_speaker} -> {speaker}")
-                # 标记玩家切换，触发剩余语音识别
+
+                # 玩家切换时，将之前累积的语音转文字
                 with self._buffer_lock:
-                    self._speaker_changed = True
-                    self._last_speaker = self._current_speaker
+                    if len(self._audio_buffer) > 0:
+                        # 复制缓冲区并清空
+                        buffer_copy = self._audio_buffer.copy()
+                        self._audio_buffer = []
+
+                        # 使用切换前的玩家标识进行识别
+                        prev_speaker = self._current_speaker if self._current_speaker != "unknown" else speaker
+
+                        # 在锁外异步处理，避免阻塞
+                        threading.Thread(
+                            target=self._process_speech,
+                            args=(buffer_copy, prev_speaker),
+                            daemon=True
+                        ).start()
+
+                # 更新当前玩家
                 self._current_speaker = speaker
 
     def get_speaker(self):
@@ -174,21 +182,16 @@ class GooseGooseDuckAudioAnalyzer:
 
         return "suspicious" if score > 0 else "trust" if score < 0 else "neutral"
 
-    def _process_segment(self, audio_frames, speaker, is_flush=False):
+    def _process_speech(self, audio_frames, speaker):
         """
-        处理一个语音片段
+        处理语音并保存
 
         Args:
             audio_frames: 音频帧列表
             speaker: 发言玩家
-            is_flush: 是否为强制刷新（玩家切换时）
         """
-        if not audio_frames:
-            return
-
         duration = len(audio_frames) * self.chunk / self.rate
-        flush_tag = "[强制识别]" if is_flush else ""
-        print(f"{flush_tag}处理语音片段: {duration:.1f}秒, 玩家: {speaker}")
+        print(f"[语音识别] 处理: {duration:.1f}秒, 玩家: {speaker}")
 
         text = self.transcribe_audio(audio_frames)
 
@@ -225,7 +228,7 @@ class GooseGooseDuckAudioAnalyzer:
         print(f"[AudioAnalyzer] 分析结果已保存至 {filename}")
 
     def continuous_recording(self):
-        """持续录音并分段识别"""
+        """持续录音，累积语音直到玩家切换"""
         p = pyaudio.PyAudio()
         stream = p.open(
             format=self.format,
@@ -236,71 +239,25 @@ class GooseGooseDuckAudioAnalyzer:
             frames_per_buffer=self.chunk
         )
 
-        print(f"开始监听游戏语音... (分段识别: {self.segment_duration}秒)")
-
-        chunk_counter = 0
-        is_speaking = False
-        silence_count = 0
+        print("开始监听游戏语音... (玩家切换时触发识别)")
 
         try:
             while self.is_recording:
                 data = stream.read(self.chunk, exception_on_overflow=False)
 
-                # VAD检测
-                has_voice = self.vad_detect(data)
-
-                if has_voice:
-                    is_speaking = True
-                    silence_count = 0
-                else:
-                    silence_count += 1
-                    # 如果静音超过2秒，认为说话暂停
-                    if silence_count > 86:  # 约2秒
-                        is_speaking = False
-
-                # 累积音频帧
-                with self._buffer_lock:
-                    self._audio_buffer.append(data)
-                    chunk_counter += 1
-
-                    # 检查是否需要强制识别（玩家切换）
-                    if self._speaker_changed and len(self._audio_buffer) > 0:
-                        # 使用切换前的玩家标识
-                        speaker = self._last_speaker if self._last_speaker != "unknown" else self._current_speaker
-                        buffer_copy = self._audio_buffer.copy()
-                        self._audio_buffer = []
-                        self._speaker_changed = False
-                        chunk_counter = 0
-
-                        # 在锁外处理，避免阻塞
-                        threading.Thread(
-                            target=self._process_segment,
-                            args=(buffer_copy, speaker, True),
-                            daemon=True
-                        ).start()
-
-                    # 常规分段识别（满3秒且有语音）
-                    elif chunk_counter >= self.segment_chunks and is_speaking:
-                        speaker = self.get_speaker()
-                        buffer_copy = self._audio_buffer.copy()
-                        self._audio_buffer = []
-                        chunk_counter = 0
-
-                        # 在锁外处理，避免阻塞
-                        threading.Thread(
-                            target=self._process_segment,
-                            args=(buffer_copy, speaker, False),
-                            daemon=True
-                        ).start()
+                # VAD检测：只累积有语音的数据
+                if self.vad_detect(data):
+                    with self._buffer_lock:
+                        self._audio_buffer.append(data)
 
         except KeyboardInterrupt:
             print("停止录制")
         finally:
-            # 处理剩余语音
+            # 处理剩余语音（使用当前玩家）
             with self._buffer_lock:
                 if self._audio_buffer:
                     speaker = self.get_speaker()
-                    self._process_segment(self._audio_buffer, speaker, True)
+                    self._process_speech(self._audio_buffer, speaker)
 
             stream.stop_stream()
             stream.close()
@@ -334,8 +291,7 @@ if __name__ == "__main__":
 
     analyzer = GooseGooseDuckAudioAnalyzer(
         on_new_record=on_new_record,
-        auto_save=True,
-        segment_duration=5.0  # 3秒分段
+        auto_save=True
     )
 
     # 模拟外部更新speaker（测试玩家切换）
