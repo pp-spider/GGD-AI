@@ -175,9 +175,9 @@ class SpeakerDigitMonitor:
                             print(f"[SpeakerDigitMonitor] 发言玩家切换: {old_digit} -> {digit}")
                             if self.callback:
                                 self.callback(digit, old_digit)
-                        elif digit is None and old_digit is not None:
-                            # digit变为None时不更新current_digit，保持最后一个有效值
-                            print(f"[SpeakerDigitMonitor] 未检测到发言标识，保持当前玩家: {old_digit}")
+                        # elif digit is None and old_digit is not None:
+                        #     # digit变为None时不更新current_digit，保持最后一个有效值
+                        #     print(f"[SpeakerDigitMonitor] 未检测到发言标识，保持当前玩家: {old_digit}")
 
             except Exception as e:
                 print(f"[SpeakerDigitMonitor] 监控出错: {e}")
