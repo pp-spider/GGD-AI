@@ -1,49 +1,134 @@
 import cv2
 import numpy as np
 import os
+import re
 import threading
 import time
+from typing import List, Dict, Optional
+from paddleocr import PaddleOCRVL
+from paddlex.inference.pipelines.paddleocr_vl.result import PaddleOCRVLResult
+from paddlex.inference.pipelines.paddleocr_vl.result import PaddleOCRVLBlock
+import time
 
-# 模板路径 - 使用脚本所在目录的绝对路径
+# 基础路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-template_path = os.path.join(BASE_DIR, 'template_imgs')
 
-# 加载所有模板（全局缓存）
-_templates = None
+# PaddleOCR 模型路径（从 ModelScope 本地缓存加载）
+PADDLEOCR_MODEL_PATH = r"C:\Users\spider\.cache\modelscope\hub\models\PaddlePaddle\PaddleOCR-VL-1.5"
 
-def _load_templates():
-    """加载所有数字模板"""
-    global _templates
-    if _templates is None:
-        _templates = {}
-        template_files = ['01', '02', '06', '10', '11', '12', '13']
-        for digit in template_files:
-            template_file = f'{template_path}/{digit}.png'
-            if os.path.exists(template_file):
-                _templates[digit] = cv2.imread(template_file, 0)
-            else:
-                print(f"警告: 模板文件不存在 {template_file}")
-    return _templates
+# 全局 OCR 识别器（延迟加载）
+_ocr_pipeline = None
+_ocr_lock = threading.Lock()
+_is_loading = False
 
 
-def extract_player_num_from_array(img_gray, save_debug=True, debug_prefix=""):
+def _load_ocr_model():
+    """延迟加载 PaddleOCR-VL 模型"""
+    global _ocr_pipeline, _is_loading
+
+    if _ocr_pipeline is not None:
+        return _ocr_pipeline
+
+    with _ocr_lock:
+        if _ocr_pipeline is None and not _is_loading:
+            _is_loading = True
+            try:
+                _ocr_pipeline = PaddleOCRVL(
+                    use_doc_orientation_classify=False,
+                    use_doc_unwarping=False,
+                    use_layout_detection=False,
+                    device='cpu'
+                )
+                print("[PaddleOCRVL] 模型加载完成")
+            except Exception as e:
+                print(f"[PaddleOCRVL] 模型加载失败: {e}")
+                raise
+            finally:
+                _is_loading = False
+
+    return _ocr_pipeline
+
+
+def _extract_text_from_result(result) -> List[Dict]:
+    """从 PaddleOCR 结果中提取文本信息"""
+    texts = []
+
+    # 从 parsing_res_list 中提取文本
+    if result.get('parsing_res_list'):
+        for item in result['parsing_res_list']:
+            if getattr(item, 'content', ''):
+                texts.append({
+                    'text': getattr(item, 'content', ''),
+                    'bbox': getattr(item, 'bbox', None),
+                })
+    return texts
+
+
+def _recognize_image(img_array: np.ndarray) -> List[Dict]:
     """
-    从灰度图像数组中提取玩家数字
+    使用 PaddleOCR-VL 识别图像
 
     Args:
-        img_gray: 灰度图像 (numpy array)
+        img_array: BGR 格式的 numpy 数组
+
+    Returns:
+        List[Dict]: 识别结果列表
+    """
+    pipeline = _load_ocr_model()
+    if pipeline is None:
+        return []
+
+    # 保存为临时文件
+    temp_dir = os.path.join(BASE_DIR, 'temp_images')
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, f'ocr_{int(time.time()*1000)}.png')
+
+    try:
+        cv2.imwrite(temp_path, img_array)
+        start = time.time()
+        output = pipeline.predict(temp_path)
+        end = time.time()
+        print(f"识别耗时：{end-start}")
+
+        all_texts = []
+        for res in output:
+            texts = _extract_text_from_result(res)
+            all_texts.extend(texts)
+
+        return all_texts
+    except Exception as e:
+        return None
+    # finally:
+    #     # 清理临时文件
+    #     if os.path.exists(temp_path):
+    #         try:
+    #             os.remove(temp_path)
+    #         except:
+    #             pass
+
+
+def extract_player_num_from_array(img, save_debug=True, debug_prefix=""):
+    """
+    从图像数组中提取玩家标识（使用 PaddleOCR-VL）
+
+    支持识别数字、汉字、字母等多种字符。
+
+    Args:
+        img: 图像 (numpy array, BGR 或灰度)
         save_debug: 是否保存调试图片
         debug_prefix: 调试图片文件名前缀
 
     Returns:
-        str: 识别到的数字 (如 '02', '06')，未识别返回 None
+        str: 识别到的文本，未识别返回 None
     """
-    if img_gray is None or img_gray.size == 0:
+    if img is None or img.size == 0:
         return None
 
     # 确保是灰度图
-    if len(img_gray.shape) == 3:
-        img_gray = cv2.cvtColor(img_gray, cv2.COLOR_BGR2GRAY)
+    if len(img.shape) == 3:
+        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        img_gray = img.copy()
 
     # OTSU二值化
     _, binary_otsu = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -53,12 +138,6 @@ def extract_player_num_from_array(img_gray, save_debug=True, debug_prefix=""):
 
     # 找白色连通域（卡片）
     num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary_otsu)
-
-    # 加载模板
-    templates = _load_templates()
-    if not templates:
-        print("错误: 没有加载到任何模板")
-        return None
 
     for i in range(1, num_labels):
         x, y, w, h, area = stats[i]
@@ -73,66 +152,59 @@ def extract_player_num_from_array(img_gray, save_debug=True, debug_prefix=""):
                 os.makedirs(temp_dir, exist_ok=True)
                 cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}.png'), img_gray[y:y + h, x:x + w])
                 cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}_.png'),
-                           img_gray[y:int(y + h*0.3), x:int(x + w*0.15)])
+                           img_gray[y:int(y + h*0.3), x:x + w])
 
-            # 在卡片顶部区域进行模板匹配
-            card_top = img_gray[y:int(y + h*0.3), x:int(x + w*0.15)]
+            # 在卡片顶部区域进行 OCR 识别（左上角区域，包含玩家编号）
+            card_top = img_gray[y:int(y + h*0.3), x:x + w]
 
-            best_digit = None
-            best_score = 0.0
-            threshold = 0.8
+            try:
+                results = _recognize_image(card_top)
 
-            for digit, template in templates.items():
-                if template is None:
-                    continue
-                # 模板匹配
-                res = cv2.matchTemplate(card_top, template, cv2.TM_CCOEFF_NORMED)
-                # 获取最大匹配分数
-                _, max_val, _, _ = cv2.minMaxLoc(res)
+                if not results:
+                    return None
+                return results[0].get('text', '')
 
-                # 记录全局最大
-                if max_val > best_score:
-                    best_score = max_val
-                    best_digit = digit
-
-            # 只有全局最大分数超过阈值才返回
-            if best_score >= threshold and best_digit is not None:
-                return best_digit
+            except Exception as e:
+                print(f"[OCR] 识别失败: {e}")
+                return None
     return None
+
+
 
 
 def extract_player_num(image_path):
     """
-    从图像文件路径提取玩家数字（兼容原有接口）
+    从图像文件路径提取玩家标识
 
     Args:
         image_path: 图像文件路径
 
     Returns:
-        str: 识别到的数字，未识别返回 None
+        str: 识别到的文本，未识别返回 None
     """
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    file_name = os.path.basename(image_path)
+    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if img is None:
         print("图像读取失败")
         return None
+
+    file_name = os.path.basename(image_path)
     return extract_player_num_from_array(img, save_debug=False, debug_prefix=file_name.split(".")[0])
 
 
 class SpeakerDigitMonitor:
-    """发言玩家序号实时监控器"""
+    """发言玩家标识实时监控器（使用 PaddleOCR-VL）"""
 
     def __init__(self, callback=None, interval=0.5):
         """
         初始化监控器
 
         Args:
-            callback: 当检测到digit变化时的回调函数，接收(new_digit, old_digit)参数
+            callback: 当检测到标识变化时的回调函数，接收(new_id, old_id)参数
             interval: 检测间隔（秒）
         """
         self.callback = callback
         self.interval = interval
-        self.current_digit = None
+        self.current_id = None
         self.is_running = False
         self.monitor_thread = None
         self._lock = threading.Lock()
@@ -142,14 +214,14 @@ class SpeakerDigitMonitor:
         开始监控
 
         Args:
-            capture_func: 截图函数，返回numpy数组（BGR或灰度图像）
+            capture_func: 截图函数，返回 numpy 数组（BGR 格式）
         """
         self.is_running = True
         self.capture_func = capture_func
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
         self.monitor_thread.start()
-        print("[SpeakerDigitMonitor] 监控已启动")
+        print("[SpeakerDigitMonitor] 监控已启动（PaddleOCR-VL 模式）")
 
     def stop(self):
         """停止监控"""
@@ -162,22 +234,19 @@ class SpeakerDigitMonitor:
         """监控循环"""
         while self.is_running:
             try:
-                # 调用截图函数获取画面
                 img = self.capture_func()
                 if img is not None:
-                    digit = extract_player_num_from_array(img)
+                    # 使用 OCR 识别
+                    detected_id = extract_player_num_from_array(img)
 
                     with self._lock:
-                        old_digit = self.current_digit
-                        # digit变化时更新（包括从None变为有值，或值改变）
-                        if digit != old_digit and digit is not None:
-                            self.current_digit = digit
-                            print(f"[SpeakerDigitMonitor] 发言玩家切换: {old_digit} -> {digit}")
+                        old_id = self.current_id
+                        # 标识变化时更新
+                        if detected_id != old_id and detected_id is not None:
+                            self.current_id = detected_id
+                            print(f"[SpeakerDigitMonitor] 发言玩家切换: {old_id} -> {detected_id}")
                             if self.callback:
-                                self.callback(digit, old_digit)
-                        # elif digit is None and old_digit is not None:
-                        #     # digit变为None时不更新current_digit，保持最后一个有效值
-                        #     print(f"[SpeakerDigitMonitor] 未检测到发言标识，保持当前玩家: {old_digit}")
+                                self.callback(detected_id, old_id)
 
             except Exception as e:
                 print(f"[SpeakerDigitMonitor] 监控出错: {e}")
@@ -185,20 +254,18 @@ class SpeakerDigitMonitor:
             time.sleep(self.interval)
 
     def get_current_digit(self):
-        """获取当前发言玩家数字"""
+        """获取当前发言玩家标识"""
         with self._lock:
-            return self.current_digit
+            return self.current_id
 
 
 # 兼容原有测试代码
 if __name__ == "__main__":
-    # 加载模板
-    _load_templates()
-
     test_imgs_dir = './test_imgs'
     if os.path.exists(test_imgs_dir):
         for ii in os.listdir(test_imgs_dir):
-            num = extract_player_num(f'{test_imgs_dir}/{ii}')
-            print(f'{test_imgs_dir}/{ii}：{num}')
+            img_path = os.path.join(test_imgs_dir, ii)
+            result = extract_player_num(img_path)
+            print(f'{img_path}：{result}')
     else:
         print(f"测试目录不存在: {test_imgs_dir}")

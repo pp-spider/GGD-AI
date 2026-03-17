@@ -7,3 +7,7 @@ pywin32>=306
 pyaudio>=0.2.11
 funasr>=1.0.0
 modelscope>=1.10.0
+paddlepaddle>=3.2.0
+paddleocr[doc-parser]
+langchain<0.2.0
+langchain-community<0.2.0
