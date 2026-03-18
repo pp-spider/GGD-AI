@@ -22,7 +22,6 @@ function MainScreen() {
     isLoading,
     error,
     toggle,
-    nextRound,
     selectWindow
   } = useMonitor();
 
@@ -53,9 +52,6 @@ function MainScreen() {
     }
   }, [isMonitoring, toggle, selectWindow]);
 
-  const handleNextRound = useCallback(async () => {
-    await nextRound();
-  }, [nextRound]);
 
   return (
     <div className="main-screen">
@@ -94,13 +90,6 @@ function MainScreen() {
           onToggle={handleToggle}
           disabled={isLoading || showWindowSelect}
         />
-        <button
-          className="next-round-btn"
-          onClick={handleNextRound}
-          disabled={!isMonitoring || isLoading}
-        >
-          下一轮
-        </button>
       </div>
     </div>
   );

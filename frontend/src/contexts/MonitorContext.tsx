@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import type { AIAnalysisResult } from "../types/analysis";
 
 const API_BASE = "http://localhost:9876";
 
@@ -12,6 +13,11 @@ export interface Record {
   round: number;
 }
 
+export interface PlayerInfo {
+  id: string;
+  name: string;
+}
+
 interface MonitorContextValue {
   status: string;
   isMonitoring: boolean;
@@ -19,9 +25,20 @@ interface MonitorContextValue {
   currentSpeaker: string | null;
   windowTitle: string | null;
   records: Record[];
+  players: PlayerInfo[];
+  myPlayerId: string | null;
+  // AI分析相关
+  analysisResult: AIAnalysisResult | null;
+  isAnalyzing: boolean;
+  setMyPlayerId: (id: string) => void;
+  getPlayerDisplayName: (speakerId: string | null) => string | null;
   initSystem: () => Promise<any>;
   startMonitor: () => Promise<void>;
   stopMonitor: () => Promise<void>;
+  fetchPlayers: () => Promise<void>;
+  forceExtractPlayers: () => Promise<void>;
+  startAnalysis: (round?: number) => Promise<void>;
+  fetchLatestAnalysis: () => Promise<void>;
 }
 
 const MonitorContext = createContext<MonitorContextValue | null>(null);
@@ -33,6 +50,12 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
   const [windowTitle, setWindowTitle] = useState<string | null>(null);
+  const [players, setPlayers] = useState<PlayerInfo[]>([]);
+  const [myPlayerId, setMyPlayerIdState] = useState<string | null>(null);
+  // AI分析相关状态
+  const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   const wsRef = useRef<WebSocket | null>(null);
   const nextIdRef = useRef(1);
   // 用于防止 StrictMode 双重渲染导致重复连接
@@ -40,11 +63,29 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   // 用于去重 - 存储已处理的消息标识
   const processedMessagesRef = useRef<Set<string>>(new Set());
 
-  console.log("[MonitorContext] 状态 - 记录数:", records.length, "当前玩家:", currentSpeaker);
+  console.log("[MonitorContext] 状态 - 记录数:", records.length, "当前玩家:", currentSpeaker, "currentRound:", currentRound);
+
+  // 追踪组件挂载和 currentRound 变化
+  useEffect(() => {
+    console.log("[MonitorContext] 组件挂载/重新渲染, currentRound:", currentRound);
+  }, []);
+
+  useEffect(() => {
+    console.log("[MonitorContext] currentRound 变化:", currentRound);
+  }, [currentRound]);
+
+  // 从 localStorage 读取自己的玩家ID
+  useEffect(() => {
+    const savedPlayerId = localStorage.getItem("ggd_ai_my_player_id");
+    if (savedPlayerId) {
+      setMyPlayerIdState(savedPlayerId);
+      console.log("[MonitorContext] 从localStorage读取玩家ID:", savedPlayerId);
+    }
+  }, []);
 
   // 初始化系统
   const initSystem = useCallback(async () => {
-    console.log("[MonitorContext] 开始初始化系统...");
+    console.log("[MonitorContext] 开始初始化系统..., currentRound:", currentRound);
     try {
       const response = await fetch(`${API_BASE}/api/init`, { method: "POST" });
       const data = await response.json();
@@ -130,6 +171,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
         setIsMonitoring(msg.data.is_running);
         setCurrentSpeaker(msg.data.current_speaker);
         if (msg.data.current_round) {
+          console.log("[MonitorContext] status消息设置currentRound:", msg.data.current_round);
           setCurrentRound(msg.data.current_round);
         }
       } else if (msg.type === "speaker_change") {
@@ -139,11 +181,30 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
         console.log("[MonitorContext] 状态变化:", msg.data);
         setIsMonitoring(msg.data.status === "running");
         if (msg.data.round) {
+          console.log("[MonitorContext] status_change消息设置currentRound:", msg.data.round);
           setCurrentRound(msg.data.round);
         }
       } else if (msg.type === "round_reset") {
-        console.log("[MonitorContext] 轮数重置:", msg.data);
-        setCurrentRound(msg.data.round || msg.data.current_round || 1);
+        const newRound = msg.data.round || msg.data.current_round || 1;
+        console.log("[MonitorContext] 轮数重置:", msg.data, "设置currentRound:", newRound);
+        setCurrentRound(newRound);
+      } else if (msg.type === "player_info_update") {
+        console.log("[MonitorContext] 玩家信息更新:", msg.data);
+        if (msg.data.players) {
+          setPlayers(msg.data.players);
+        }
+      } else if (msg.type === "ai_analysis_started") {
+        console.log("[MonitorContext] AI分析开始:", msg.data);
+        setIsAnalyzing(true);
+      } else if (msg.type === "ai_analysis_completed") {
+        console.log("[MonitorContext] AI分析完成:", msg.data);
+        setIsAnalyzing(false);
+        if (msg.data.status === "success" && msg.data.analysis) {
+          setAnalysisResult(msg.data.analysis);
+        }
+      } else if (msg.type === "ai_analysis_error") {
+        console.log("[MonitorContext] AI分析错误:", msg.data);
+        setIsAnalyzing(false);
       }
     };
 
@@ -167,27 +228,57 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
     wsRef.current = ws;
   }, [currentRound]);
 
+  // 获取玩家信息
+  const fetchPlayers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/players`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setPlayers(data.players);
+        console.log("[MonitorContext] 已获取玩家信息:", data.players);
+      }
+    } catch (e) {
+      console.error("[MonitorContext] 获取玩家信息失败:", e);
+    }
+  }, []);
+
+  // 强制提取玩家信息（异步执行，结果通过 WebSocket 通知）
+  const forceExtractPlayers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/extract-players`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      console.log("[MonitorContext] 强制提取玩家信息已启动:", data);
+      // 注意：提取结果将通过 WebSocket 的 player_info_update 事件通知
+    } catch (e) {
+      console.error("[MonitorContext] 强制提取玩家信息失败:", e);
+    }
+  }, []);
+
   // 开始监听
   const startMonitor = useCallback(async () => {
-    console.log("[MonitorContext] 开始监听流程...");
+    console.log("[MonitorContext] 开始监听流程..., 当前currentRound:", currentRound);
 
     try {
-      console.log("[MonitorContext] 发送启动命令...");
+      const requestRound = currentRound;
+      console.log("[MonitorContext] 发送启动命令... 请求body中round:", requestRound, "(与当前一致)");
       const startResponse = await fetch(`${API_BASE}/api/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ round: currentRound + 1, auto_save: true }),
+        body: JSON.stringify({ round: requestRound, auto_save: true }),
       });
       const startData = await startResponse.json();
       console.log("[MonitorContext] 启动命令结果:", startData);
 
       if (startData.status === "success") {
-        setCurrentRound((prev) => prev + 1);
+        console.log("[MonitorContext] 启动成功，保持currentRound不变, 当前:", currentRound);
         setIsMonitoring(true);
         if (startData.window_title) {
           setWindowTitle(startData.window_title);
         }
-        console.log("[MonitorContext] 监听启动完成");
+        // 注意：玩家信息会异步提取，完成后通过 WebSocket 的 player_info_update 事件通知
+        console.log("[MonitorContext] 监听启动完成，玩家信息后台提取中...");
       } else {
         console.error("[MonitorContext] 启动失败:", startData);
       }
@@ -205,10 +296,62 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
       console.log("[MonitorContext] 停止结果:", data);
       setIsMonitoring(false);
       setCurrentSpeaker(null);
+      // 停止后会自动触发AI分析，无需手动调用
     } catch (error) {
       console.error("[MonitorContext] 停止监听失败:", error);
     }
   }, []);
+
+  // 手动触发AI分析
+  const startAnalysis = useCallback(async (round?: number) => {
+    console.log("[MonitorContext] 触发AI分析...", round);
+    try {
+      const response = await fetch(`${API_BASE}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ round }),
+      });
+      const data = await response.json();
+      console.log("[MonitorContext] 分析触发结果:", data);
+    } catch (error) {
+      console.error("[MonitorContext] 触发AI分析失败:", error);
+    }
+  }, []);
+
+  // 获取最新分析结果
+  const fetchLatestAnalysis = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/analysis/latest`);
+      const data = await response.json();
+      if (data.status === "success" && data.analysis) {
+        console.log("[MonitorContext] 获取到最新分析结果:", data.analysis);
+        setAnalysisResult(data.analysis);
+      }
+    } catch (error) {
+      console.error("[MonitorContext] 获取分析结果失败:", error);
+    }
+  }, []);
+
+  // 设置自己的玩家ID
+  const setMyPlayerId = useCallback((id: string) => {
+    setMyPlayerIdState(id);
+    localStorage.setItem("ggd_ai_my_player_id", id);
+    console.log("[MonitorContext] 设置玩家ID:", id);
+  }, []);
+
+  // 获取玩家显示名称
+  const getPlayerDisplayName = useCallback((speakerId: string | null): string | null => {
+    if (!speakerId) return null;
+
+    const player = players.find((p) => p.id === speakerId);
+    if (player) {
+      const isSelf = myPlayerId === speakerId;
+      return `${player.id} ${player.name}${isSelf ? " (自己)" : ""}`;
+    }
+
+    // 没找到玩家，返回默认格式
+    return `${speakerId}玩家`;
+  }, [players, myPlayerId]);
 
   // 清理 WebSocket
   useEffect(() => {
@@ -224,9 +367,20 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
     currentSpeaker,
     windowTitle,
     records,
+    players,
+    myPlayerId,
+    // AI分析相关
+    analysisResult,
+    isAnalyzing,
+    setMyPlayerId,
+    getPlayerDisplayName,
     initSystem,
     startMonitor,
     stopMonitor,
+    fetchPlayers,
+    forceExtractPlayers,
+    startAnalysis,
+    fetchLatestAnalysis,
   };
 
   return (

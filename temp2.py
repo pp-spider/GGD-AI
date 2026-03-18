@@ -6,8 +6,8 @@ import re
 from openai import OpenAI
 
 client = OpenAI(
-    api_key="sk-iXOzp55BbYuxSLsnSn1LejfdoS4PCkmj2mDZjGWzlhQ7V9af",
-    base_url="https://api.moonshot.cn/v1",
+    api_key = "sk-",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
 )
 
 # 在这里，你需要将 kimi.png 文件替换为你想让 Kimi 识别的图片的地址
@@ -31,7 +31,7 @@ system_prompt = """
 """
 
 completion = client.chat.completions.create(
-    model="kimi-k2.5",
+    model="qwen3-vl-plus",
     messages=[
         {"role": "system", "content": system_prompt},
         {

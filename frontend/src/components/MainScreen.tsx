@@ -1,14 +1,22 @@
 import React, { useRef, useEffect } from "react";
 import { useMonitor } from "../hooks/useMonitor";
+import AIAnalysisPanel from "./AIAnalysisPanel";
 
-const MainScreen: React.FC = () => {
+interface MainScreenProps {
+  onResetSetup?: () => void;
+}
+
+const MainScreen: React.FC<MainScreenProps> = ({ onResetSetup }) => {
   const {
     isMonitoring,
     startMonitor,
     stopMonitor,
     currentSpeaker,
+    currentRound,
     windowTitle,
     records,
+    getPlayerDisplayName,
+    forceExtractPlayers,
   } = useMonitor();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +61,7 @@ const MainScreen: React.FC = () => {
     return title.length > 15 ? title.slice(0, 15) + "..." : title;
   };
 
+
   return (
     <div className="main-screen">
       {/* 标题栏 - 显示窗口名称和当前发言玩家 */}
@@ -63,13 +72,15 @@ const MainScreen: React.FC = () => {
           </span>
           {currentSpeaker && (
             <span className="current-speaker">
-              🔊 {currentSpeaker}玩家发言中
+              🔊 {getPlayerDisplayName(currentSpeaker)}发言中
             </span>
           )}
         </div>
       </div>
 
-      <div className="messages-container">
+      <div className="main-content">
+        <div className="messages-section">
+          <div className="messages-container">
         {records.length === 0 && (
           <div
             style={{
@@ -88,7 +99,7 @@ const MainScreen: React.FC = () => {
             {roundRecords.map((record) => (
               <div key={record.id} className="message-item">
                 <div className="message-header">
-                  <span className="speaker-badge">{record.speaker}玩家</span>
+                  <span className="speaker-badge">{getPlayerDisplayName(record.speaker)}</span>
                   <span className="timestamp">{record.timestamp}</span>
                 </div>
                 <div className="message-text">{record.text}</div>
@@ -96,16 +107,42 @@ const MainScreen: React.FC = () => {
             ))}
           </div>
         ))}
-        <div ref={messagesEndRef} />
-      </div>
+            <div ref={messagesEndRef} />
+          </div>
 
-      <div className="control-panel">
-        <button
-          className={`control-btn ${isMonitoring ? "btn-stop" : "btn-start"}`}
-          onClick={handleToggleMonitor}
-        >
-          {isMonitoring ? "⏸ 结束监听" : "▶ 开始监听"}
-        </button>
+          <div className="control-panel">
+            <div className="round-info">第 {currentRound} 轮</div>
+            {onResetSetup && (
+              <button
+                className="control-btn btn-settings"
+                onClick={onResetSetup}
+                title="修改玩家ID"
+              >
+                ⚙️ 设置
+              </button>
+            )}
+            {isMonitoring && (
+              <button
+                className="control-btn btn-refresh"
+                onClick={forceExtractPlayers}
+                title="重新提取玩家信息"
+              >
+                🔄 刷新玩家
+              </button>
+            )}
+            <button
+              className={`control-btn ${isMonitoring ? "btn-stop" : "btn-start"}`}
+              onClick={handleToggleMonitor}
+            >
+              {isMonitoring ? "⏸ 结束监听" : "▶ 开始监听"}
+            </button>
+          </div>
+        </div>
+
+        {/* AI分析面板 */}
+        <div className="analysis-section">
+          <AIAnalysisPanel />
+        </div>
       </div>
     </div>
   );

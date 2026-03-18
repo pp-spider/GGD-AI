@@ -284,10 +284,46 @@ class GooseGooseDuckAudioAnalyzer:
         self.recording_thread.daemon = True
         self.recording_thread.start()
 
-    def stop(self):
+    def stop(self, round_num: int = 1):
+        """
+        停止录音，并触发最后剩余语音的识别
+
+        Args:
+            round_num: 当前轮数，用于标记识别结果
+        """
+        print("[AudioAnalyzer] 正在停止录音...")
         self.is_recording = False
+
+        # 等待录音线程结束（finally块会处理部分剩余语音）
         if hasattr(self, 'recording_thread') and self.recording_thread:
-            self.recording_thread.join()
+            self.recording_thread.join(timeout=3)  # 最多等待3秒
+
+        # 兜底处理：确保缓冲区被处理（防止finally块未完全处理）
+        self._flush_remaining_buffer(round_num)
+
+        print("[AudioAnalyzer] 录音已停止")
+
+    def _flush_remaining_buffer(self, round_num: int = 1):
+        """
+        强制处理剩余的音频缓冲区
+        在停止监听时调用，确保最后一段语音被识别
+
+        Args:
+            round_num: 当前轮数
+        """
+        buffer_to_process = None
+        with self._buffer_lock:
+            if self._audio_buffer:
+                buffer_len = len(self._audio_buffer)
+                buffer_to_process = self._audio_buffer.copy()
+                self._audio_buffer = []
+                print(f"[AudioAnalyzer] 强制处理剩余缓冲区: {buffer_len} 帧")
+
+        if buffer_to_process:
+            speaker = self.get_speaker()
+            # 同步处理，确保在stop返回前完成识别
+            self._process_speech(buffer_to_process, speaker, round_num)
+            print(f"[AudioAnalyzer] 剩余语音处理完成，发言人: {speaker}")
 
     def save_log(self, filename="game_analysis.json"):
         """手动保存日志"""

@@ -13,13 +13,11 @@
     "windows": [
       {
         "title": "鹅鸭杀发言监听助手",
-        "width": 350,
+        "width": 800,
         "height": 650,
-        "minWidth": 350,
-        "minHeight": 650,
-        "maxWidth": 350,
-        "maxHeight": 650,
-        "resizable": false,
+        "minWidth": 600,
+        "minHeight": 500,
+        "resizable": true,
         "decorations": true,
         "transparent": true,
         "center": true,

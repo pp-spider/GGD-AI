@@ -58,23 +58,37 @@ class ScreenCapture:
         self._bitmap.CreateCompatibleBitmap(self._cdc, self._width, self._height)
         self._mem_dc.SelectObject(self._bitmap)
 
-    def capture(self):
+    def capture(self, use_fast_mode=True):
         """
         捕获画面
+
+        Args:
+            use_fast_mode: 是否使用快速截图模式（优先使用BitBlt）
 
         Returns:
             numpy.ndarray: BGR格式的图像数组，失败返回None
         """
+        import time
+        start_time = time.time()
+
         try:
             # 执行截图到内存DC
             if self.hwnd:
-                # 尝试使用PrintWindow（支持后台窗口）
-                # PW_RENDERFULLCONTENT = 0x00000002, PW_CLIENTONLY = 0x00000001
-                result = PrintWindow(int(self.hwnd), int(self._mem_dc.GetSafeHdc()), 2)
-
-                if not result:
-                    # PrintWindow失败，尝试BitBlt（需要窗口在前台）
-                    self._mem_dc.BitBlt((0, 0), (self._width, self._height), self._cdc, (0, 0), win32con.SRCCOPY)
+                if use_fast_mode:
+                    # 快速模式：先尝试BitBlt（更快，但要求窗口在前台）
+                    try:
+                        self._mem_dc.BitBlt((0, 0), (self._width, self._height), self._cdc, (0, 0), win32con.SRCCOPY)
+                    except Exception:
+                        # BitBlt失败，回退到PrintWindow
+                        result = PrintWindow(int(self.hwnd), int(self._mem_dc.GetSafeHdc()), 0)
+                        if not result:
+                            return None
+                else:
+                    # 兼容模式：使用PrintWindow（支持后台窗口，但较慢）
+                    # PW_RENDERFULLCONTENT = 0x00000002, PW_CLIENTONLY = 0x00000001
+                    result = PrintWindow(int(self.hwnd), int(self._mem_dc.GetSafeHdc()), 0)
+                    if not result:
+                        return None
             else:
                 # 截图屏幕
                 self._mem_dc.BitBlt((0, 0), (self._width, self._height), self._cdc, (0, 0), win32con.SRCCOPY)
@@ -97,10 +111,15 @@ class ScreenCapture:
                 print(f"[ScreenCapture] 不支持的位图格式: {bmpinfo['bmBitsPixel']} bits")
                 return None
 
+            elapsed = time.time() - start_time
+            if elapsed > 0.1:  # 只记录较慢的截图
+                print(f"[ScreenCapture] 截图完成，耗时: {elapsed*1000:.1f}ms")
+
             return img
 
         except Exception as e:
-            print(f"[ScreenCapture] 截图失败: {e}")
+            elapsed = time.time() - start_time
+            print(f"[ScreenCapture] 截图失败 (耗时: {elapsed*1000:.1f}ms): {e}")
             import traceback
             traceback.print_exc()
             return None

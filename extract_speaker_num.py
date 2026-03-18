@@ -11,7 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 template_path = os.path.join(BASE_DIR, 'template_imgs')
 
 # 全局配置：默认使用模板匹配，可选 'template' 或 'ocr'
-RECOGNITION_MODE = 'ocr'
+RECOGNITION_MODE = 'template'
 
 # 加载所有模板（全局缓存）
 _templates = None
@@ -305,6 +305,8 @@ class SpeakerDigitMonitor:
 
     def _monitor_loop(self):
         """监控循环"""
+        import time
+
         # 临时设置识别模式
         original_mode = RECOGNITION_MODE
         if self.mode:
@@ -312,11 +314,24 @@ class SpeakerDigitMonitor:
 
         try:
             while self.is_running:
+                loop_start = time.time()
+
                 try:
-                    # 调用截图函数获取画面
+                    # 调用截图函数获取画面（带超时保护）
+                    capture_start = time.time()
                     img = self.capture_func()
+                    capture_time = time.time() - capture_start
+
+                    if capture_time > 0.5:
+                        print(f"[SpeakerDigitMonitor] 截图耗时过长: {capture_time*1000:.1f}ms")
+
                     if img is not None:
+                        process_start = time.time()
                         digit = extract_player_num_from_array(img)
+                        process_time = time.time() - process_start
+
+                        if process_time > 0.3:
+                            print(f"[SpeakerDigitMonitor] 图像处理耗时: {process_time*1000:.1f}ms")
 
                         with self._lock:
                             old_digit = self.current_digit
@@ -330,7 +345,15 @@ class SpeakerDigitMonitor:
                 except Exception as e:
                     print(f"[SpeakerDigitMonitor] 监控出错: {e}")
 
-                time.sleep(self.interval)
+                # 动态调整休眠时间，确保固定间隔
+                elapsed = time.time() - loop_start
+                sleep_time = max(0, self.interval - elapsed)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                else:
+                    # 如果处理时间超过间隔，只休眠很小的时间避免CPU占满
+                    time.sleep(0.01)
+
         finally:
             # 恢复原始模式
             if self.mode:

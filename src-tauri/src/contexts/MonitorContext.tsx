@@ -23,7 +23,6 @@ interface MonitorContextValue {
   stop: () => Promise<boolean>;
   toggle: () => Promise<boolean>;
   reset: () => Promise<boolean>;
-  nextRound: () => Promise<boolean>;
   clearRecords: () => Promise<boolean>;
   selectWindow: () => Promise<{hwnd: number; title: string} | null>;
 }
@@ -46,12 +45,23 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const currentRoundRef = useRef(currentRound);
   currentRoundRef.current = currentRound;
 
+  // 追踪组件挂载和 currentRound 变化
+  useEffect(() => {
+    console.log('[MonitorContext] 组件挂载/重新渲染, currentRound:', currentRound);
+  }, []);
+
+  useEffect(() => {
+    console.log('[MonitorContext] currentRound 变化:', currentRound);
+  }, [currentRound]);
+
   // 处理WebSocket消息
   useEffect(() => {
     if (messages.length === 0) return;
 
     const latestMessage = messages[messages.length - 1];
-    console.log('[MonitorContext] 收到WebSocket消息:', latestMessage);
+    console.log('[MonitorContext] 收到WebSocket消息:', latestMessage, '当前currentRound:', currentRound);
+
+    console.log('[MonitorContext] useEffect执行前 currentRound:', currentRound, 'currentRoundRef:', currentRoundRef.current);
 
     switch (latestMessage.type) {
       case 'record':
@@ -84,18 +94,20 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
 
       case 'status':
         const status = latestMessage.data;
-        console.log('[MonitorContext] 状态更新:', status);
+        console.log('[MonitorContext] 状态更新:', status, '设置currentRound:', status?.current_round);
         setIsMonitoring(status?.is_running || status?.monitoring || false);
         setCurrentSpeaker(status?.current_speaker || null);
         if (status?.current_round) {
+          console.log('[MonitorContext] status设置currentRound:', status.current_round);
           setCurrentRound(status.current_round);
         }
         break;
 
       case 'round_reset':
         const roundData = latestMessage.data;
-        console.log('[MonitorContext] 轮数重置:', roundData);
-        setCurrentRound(roundData?.round || roundData?.current_round || 1);
+        const newRoundFromReset = roundData?.round || roundData?.current_round || 1;
+        console.log('[MonitorContext] 轮数重置:', roundData, '设置currentRound:', newRoundFromReset);
+        setCurrentRound(newRoundFromReset);
         break;
 
       case 'error':
@@ -143,14 +155,18 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
   // 开始监听
   const start = useCallback(async () => {
     setIsLoading(true);
+    console.log('[MonitorContext] start() 执行前, currentRound:', currentRound, 'isMonitoring:', isMonitoring);
     try {
       const newRound = currentRound;
+      console.log('[MonitorContext] start() 发送请求, newRound:', newRound);
       await apiCall('/start', 'POST', { round: newRound, auto_save: true });
+      console.log('[MonitorContext] start() API成功, 设置currentRound:', newRound);
       setIsMonitoring(true);
       setCurrentRound(newRound);
       setIsLoading(false);
       return true;
     } catch (e) {
+      console.error('[MonitorContext] start() 失败:', e);
       setIsLoading(false);
       return false;
     }
@@ -181,27 +197,19 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
 
   // 重置轮数
   const reset = useCallback(async () => {
+    console.log('[MonitorContext] reset() 执行前, currentRound:', currentRound);
     try {
       await apiCall('/reset', 'POST', { round: 1 });
+      console.log('[MonitorContext] reset() API成功, 设置currentRound: 1');
       setCurrentRound(1);
       setRecords([]);
       return true;
     } catch (e) {
-      return false;
-    }
-  }, [apiCall]);
-
-  // 下一轮
-  const nextRound = useCallback(async () => {
-    try {
-      const newRound = currentRound + 1;
-      await apiCall('/reset', 'POST', { round: newRound });
-      setCurrentRound(newRound);
-      return true;
-    } catch (e) {
+      console.error('[MonitorContext] reset() 失败:', e);
       return false;
     }
   }, [apiCall, currentRound]);
+
 
   // 清空记录
   const clearRecords = useCallback(async () => {
@@ -226,7 +234,6 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
     stop,
     toggle,
     reset,
-    nextRound,
     clearRecords,
     selectWindow
   };

@@ -5,7 +5,11 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "Bash(conda run:*)",
-      "Bash(find D:PythonProjectsGGD-AI -type f \\\\\\(-name *.py -o -name *.md -o -name *.txt -o -name *.json -o -name *.html -o -name *.css -o -name *.js \\\\\\))"
+      "Bash(find D:PythonProjectsGGD-AI -type f \\\\\\(-name *.py -o -name *.md -o -name *.txt -o -name *.json -o -name *.html -o -name *.css -o -name *.js \\\\\\))",
+      "Bash(cd /d D:PythonProjectsGGD-AIfrontend)",
+      "Bash(npm run:*)",
+      "Bash(cd /d D:PythonProjectsGGD-AIsrc-tauri)",
+      "Bash(cargo check:*)"
     ]
   }
 }

@@ -93,11 +93,38 @@ body {
 
 /* 主页面 */
 .main-screen {
-  width: 350px;
+  width: 800px;
   height: 650px;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #2d2d3a 0%, #1e1e2e 100%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 主内容区域 - 两栏布局 */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+/* 左侧消息区域 */
+.messages-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 350px;
+  border-right: 1px solid var(--border-light);
+}
+
+/* 右侧AI分析区域 */
+.analysis-section {
+  width: 350px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 /* 标题栏 */
@@ -145,6 +172,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
 }
 
 .messages-container::-webkit-scrollbar {
@@ -231,25 +259,34 @@ body {
 
 /* 控制面板 */
 .control-panel {
-  padding: 16px;
+  padding: 12px 16px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid var(--border-light);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .control-btn {
-  width: 100%;
-  padding: 12px 32px;
+  padding: 10px 20px;
   border: none;
   border-radius: 20px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-width: 80px;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-start {
@@ -257,7 +294,7 @@ body {
   color: white;
 }
 
-.btn-start:hover {
+.btn-start:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(0, 120, 212, 0.4);
 }
@@ -267,12 +304,211 @@ body {
   color: white;
 }
 
-.btn-stop:hover {
+.btn-stop:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(209, 52, 56, 0.4);
 }
 
 .round-info {
-  font-size: 12px;
+  width: auto;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+}
+
+/* 刷新按钮 */
+.btn-refresh {
+  background: linear-gradient(135deg, #107c10, #0e700e);
+  color: white;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 124, 16, 0.4);
+}
+
+/* 设置按钮 */
+.btn-settings {
+  background: linear-gradient(135deg, #7c7c7c, #5a5a5a);
+  color: white;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.btn-settings:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(124, 124, 124, 0.4);
+}
+
+/* 玩家列表栏 */
+.players-bar {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--border-light);
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.players-bar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.players-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.players-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-start;
+}
+
+.player-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.player-tag:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.player-speaking {
+  background: rgba(0, 120, 212, 0.3) !important;
+  color: var(--fluent-blue) !important;
+  border-color: rgba(0, 120, 212, 0.5) !important;
+  font-weight: 600;
+}
+
+/* ========== Setup Screen 样式 ========== */
+
+/* 设置页面容器 */
+.setup-screen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+/* 设置卡片样式 */
+.setup-card {
+  padding: 32px 48px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: var(--acrylic-bg);
+  backdrop-filter: var(--acrylic-backdrop);
+  -webkit-backdrop-filter: var(--acrylic-backdrop);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: var(--border-shadow);
+  min-width: 320px;
+  max-width: 400px;
+}
+
+/* 标题样式 */
+.setup-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+/* 描述文字样式 */
+.setup-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+/* 输入框样式 */
+.setup-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.setup-input::placeholder {
+  color: var(--text-muted);
+}
+
+.setup-input:focus {
+  border-color: var(--fluent-blue);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
+}
+
+/* 错误提示样式 */
+.setup-error {
+  font-size: 13px;
+  color: var(--fluent-red);
+  background: rgba(209, 52, 56, 0.15);
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(209, 52, 56, 0.3);
+  width: 100%;
+  max-width: 280px;
+}
+
+/* 确认按钮样式 */
+.setup-btn {
+  padding: 12px 32px;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #0078d4, #106ebe);
+  color: white;
+  margin-top: 8px;
+  min-width: 120px;
+}
+
+.setup-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 120, 212, 0.4);
+}
+
+.setup-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 自己的玩家标识特殊样式 */
+.self-badge {
+  background: rgba(0, 120, 212, 0.25) !important;
+  color: var(--fluent-blue) !important;
+  border-color: rgba(0, 120, 212, 0.4) !important;
+  font-weight: 600;
 }

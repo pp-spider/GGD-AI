@@ -27,6 +27,7 @@ from main_monitor import GooseGooseDuckMonitor
 from window_selector import select_window
 from extract_speaker_statement import GooseGooseDuckAudioAnalyzer
 from funasr import AutoModel
+from src.ai_game_analyzer import analyze_game_round, get_analyzer
 
 # 配置日志
 logging.basicConfig(
@@ -97,6 +98,51 @@ class StatusResponse(BaseModel):
     record_count: int
     window_title: Optional[str]
     current_round: int = 1
+
+
+class PlayerInfo(BaseModel):
+    """玩家信息"""
+    id: str
+    name: str
+
+
+class PlayerListResponse(BaseModel):
+    """玩家列表响应"""
+    status: str
+    players: List[PlayerInfo]
+    count: int
+
+
+class AIAnalysisRequest(BaseModel):
+    """AI分析请求"""
+    round: Optional[int] = None  # 要分析的轮数，None表示当前轮
+
+
+class PlayerAnalysisData(BaseModel):
+    """玩家分析数据"""
+    playerId: str
+    playerName: str
+    identityGuess: str  # "goose", "duck", "neutral", "unknown"
+    confidence: float
+    reasoning: str
+    suspiciousPoints: List[str]
+    trustworthyPoints: List[str]
+
+
+class RelationshipData(BaseModel):
+    """关系数据"""
+    from_player: str
+    to_player: str
+    relation_type: str  # "ally", "enemy", "neutral", "suspicious"
+    evidence: str
+
+
+class AIAnalysisResponse(BaseModel):
+    """AI分析响应"""
+    status: str
+    analysis: Optional[Dict[str, Any]] = None
+    timestamp: str
+    message: Optional[str] = None
 
 
 # ============ WebSocket连接管理器 ============
@@ -212,6 +258,135 @@ class MonitorController:
         self.current_round = 1
         self._lock = asyncio.Lock()
         self._preloaded_model = None  # 预加载的 FunASR 模型（只加载一次）
+        self._latest_analysis: Optional[Dict[str, Any]] = None  # 最新分析结果
+        self._is_analyzing = False  # 是否正在分析
+
+    async def trigger_ai_analysis(self, round_num: Optional[int] = None):
+        """触发AI分析"""
+        async with self._lock:
+            if self._is_analyzing:
+                logger.info("[AI分析] 分析已在进行中，跳过")
+                return
+
+            if not self.monitor or not self.monitor.audio_analyzer:
+                logger.warning("[AI分析] 监控器未初始化，无法分析")
+                return
+
+            self._is_analyzing = True
+            target_round = round_num or self.current_round
+
+        try:
+            # 广播分析开始
+            await manager.broadcast({
+                "type": "ai_analysis_started",
+                "data": {"round": target_round, "timestamp": datetime.now().isoformat()}
+            })
+            logger.info(f"[AI分析] 开始分析第{target_round}轮")
+
+            # 获取记录和玩家信息
+            records = self.monitor.audio_analyzer.get_conversation_log()
+            # 过滤指定轮次的记录
+            round_records = [r for r in records if r.get("round", 1) == target_round]
+
+            if not round_records:
+                logger.warning(f"[AI分析] 第{target_round}轮无记录")
+                await manager.broadcast({
+                    "type": "ai_analysis_completed",
+                    "data": {
+                        "round": target_round,
+                        "status": "empty",
+                        "message": "本轮无发言记录"
+                    }
+                })
+                return
+
+            # 转换玩家信息格式
+            players_data = [
+                {"id": pid, "name": name}
+                for pid, name in self.monitor.player_info_map.items()
+            ]
+
+            # 如果没有玩家信息，使用记录中的speaker
+            if not players_data:
+                speaker_ids = set(r.get("speaker", "?") for r in round_records if r.get("speaker"))
+                players_data = [{"id": sid, "name": f"玩家{sid}"} for sid in speaker_ids]
+
+            logger.info(f"[AI分析] 分析数据：{len(round_records)}条记录，{len(players_data)}位玩家")
+
+            # 执行分析
+            analysis_result = await analyze_game_round(
+                records_data=round_records,
+                players_data=players_data,
+                round_num=target_round
+            )
+
+            # 保存结果
+            self._latest_analysis = analysis_result
+
+            # 广播分析完成
+            await manager.broadcast({
+                "type": "ai_analysis_completed",
+                "data": {
+                    "round": target_round,
+                    "status": "success",
+                    "analysis": analysis_result
+                }
+            })
+            logger.info(f"[AI分析] 第{target_round}轮分析完成")
+
+        except Exception as e:
+            logger.error(f"[AI分析] 分析失败: {e}")
+            await manager.broadcast({
+                "type": "ai_analysis_error",
+                "data": {
+                    "round": target_round,
+                    "status": "error",
+                    "message": str(e)
+                }
+            })
+        finally:
+            self._is_analyzing = False
+
+    def _on_player_info_extracted(self, player_info_map: Dict[str, str]):
+        """
+        玩家信息提取完成回调
+        通过事件队列广播到 WebSocket
+        """
+        if not player_info_map:
+            return
+
+        players = [
+            {"id": pid, "name": name}
+            for pid, name in player_info_map.items()
+        ]
+
+        logger.info(f"[PlayerInfo] 提取完成，共 {len(players)} 位玩家，准备广播")
+
+        # 通过事件队列广播（线程安全）
+        try:
+            event_queue.put({
+                "type": "player_info_update",
+                "data": {
+                    "players": players,
+                    "count": len(players),
+                    "timestamp": datetime.now().isoformat()
+                }
+            })
+            logger.info("[PlayerInfo] 玩家信息更新事件已加入队列")
+
+            # 如果监控已停止且有记录，触发AI分析
+            if self.monitor and not self.monitor.is_running:
+                records = self.monitor.audio_analyzer.get_conversation_log() if self.monitor.audio_analyzer else []
+                if records:
+                    logger.info("[PlayerInfo] 监控已停止且有记录，触发AI分析")
+                    # 使用asyncio.create_task在事件循环中执行
+                    if event_loop:
+                        asyncio.run_coroutine_threadsafe(
+                            self.trigger_ai_analysis(self.current_round),
+                            event_loop
+                        )
+        except Exception as e:
+            logger.error(f"[PlayerInfo] 广播玩家信息失败: {e}")
 
     async def init(self) -> bool:
         """初始化系统 - 预加载语音识别模型（只加载一次）"""
@@ -229,6 +404,10 @@ class MonitorController:
                 logger.info("语音识别模型预加载完成，后续可重复使用")
 
                 self.monitor = GooseGooseDuckMonitor()
+
+                # 设置玩家信息提取完成回调
+                self.monitor.on_player_info_extracted = self._on_player_info_extracted
+
                 self.is_initialized = True
                 logger.info("监控控制器初始化完成")
                 return True
@@ -357,6 +536,16 @@ class MonitorController:
                     "data": {"status": "stopped"}
                 })
                 logger.info("监控已停止")
+
+                # 检查是否有记录，如果有则触发AI分析
+                if self.monitor.audio_analyzer:
+                    records = self.monitor.audio_analyzer.get_conversation_log()
+                    round_records = [r for r in records if r.get("round", 1) == self.current_round]
+                    if round_records:
+                        logger.info(f"[Stop] 第{self.current_round}轮有{len(round_records)}条记录，触发AI分析")
+                        # 异步触发分析，不阻塞stop响应
+                        asyncio.create_task(self.trigger_ai_analysis(self.current_round))
+
                 # 模型保持加载状态，下次启动直接复用
                 return True
             except Exception as e:
@@ -514,6 +703,168 @@ async def clear_records():
         controller.monitor.audio_analyzer.conversation_log = []
         return {"status": "success", "message": "记录已清空"}
     return {"status": "success", "message": "无需清空"}
+
+
+@app.get("/api/players")
+async def get_players():
+    """获取当前提取的玩家信息列表"""
+    if controller.monitor and controller.monitor.player_info_map:
+        players = [
+            {"id": pid, "name": name}
+            for pid, name in controller.monitor.player_info_map.items()
+        ]
+        return {"status": "success", "players": players, "count": len(players)}
+    return {"status": "empty", "players": [], "count": 0}
+
+
+@app.post("/api/extract-players")
+async def force_extract_players():
+    """强制重新提取玩家信息（异步执行，不阻塞）"""
+    if not controller.monitor:
+        raise HTTPException(status_code=400, detail="系统未初始化")
+    if controller.monitor.hwnd is None:
+        raise HTTPException(status_code=400, detail="未选择窗口")
+
+    # 检查是否正在提取中
+    if controller.monitor._player_info_extracting:
+        return {"status": "pending", "message": "玩家信息提取正在进行中"}
+
+    # 启动后台线程异步提取（不阻塞API响应）
+    # 提取完成后会通过 WebSocket 自动广播 player_info_update 事件
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(
+        None,
+        lambda: controller.monitor._extract_and_cache_player_info(run_async=True)
+    )
+
+    return {"status": "started", "message": "玩家信息提取已启动，请等待 WebSocket 通知"}
+
+
+@app.post("/api/analyze")
+async def analyze_game(data: AIAnalysisRequest):
+    """触发AI分析指定轮次"""
+    round_num = data.round or controller.current_round
+
+    # 异步触发分析
+    asyncio.create_task(controller.trigger_ai_analysis(round_num))
+
+    return {
+        "status": "started",
+        "message": f"第{round_num}轮AI分析已启动",
+        "round": round_num,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/analysis/{round}")
+async def get_analysis(round: int):
+    """获取指定轮次的分析结果"""
+    analyzer = get_analyzer()
+    result = analyzer.get_cached_result(round)
+
+    if result:
+        return {
+            "status": "success",
+            "analysis": {
+                "round": result.round,
+                "timestamp": result.timestamp,
+                "playerAnalysis": [
+                    {
+                        "playerId": p.playerId,
+                        "playerName": p.playerName,
+                        "identityGuess": p.identityGuess,
+                        "confidence": p.confidence,
+                        "reasoning": p.reasoning,
+                        "suspiciousPoints": p.suspiciousPoints,
+                        "trustworthyPoints": p.trustworthyPoints
+                    }
+                    for p in result.playerAnalysis
+                ],
+                "relationshipMap": [
+                    {
+                        "from": r.from_player,
+                        "to": r.to_player,
+                        "type": r.relation_type,
+                        "evidence": r.evidence
+                    }
+                    for r in result.relationshipMap
+                ],
+                "summary": result.summary
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+    return {
+        "status": "not_found",
+        "analysis": None,
+        "message": f"第{round}轮的分析结果不存在",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/analysis/latest")
+async def get_latest_analysis():
+    """获取最新分析结果"""
+    if controller._latest_analysis:
+        return {
+            "status": "success",
+            "analysis": controller._latest_analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    # 尝试从分析器缓存获取
+    analyzer = get_analyzer()
+    result = analyzer.get_cached_result(controller.current_round)
+
+    if result:
+        return {
+            "status": "success",
+            "analysis": {
+                "round": result.round,
+                "timestamp": result.timestamp,
+                "playerAnalysis": [
+                    {
+                        "playerId": p.playerId,
+                        "playerName": p.playerName,
+                        "identityGuess": p.identityGuess,
+                        "confidence": p.confidence,
+                        "reasoning": p.reasoning,
+                        "suspiciousPoints": p.suspiciousPoints,
+                        "trustworthyPoints": p.trustworthyPoints
+                    }
+                    for p in result.playerAnalysis
+                ],
+                "relationshipMap": [
+                    {
+                        "from": r.from_player,
+                        "to": r.to_player,
+                        "type": r.relation_type,
+                        "evidence": r.evidence
+                    }
+                    for r in result.relationshipMap
+                ],
+                "summary": result.summary
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+    return {
+        "status": "not_found",
+        "analysis": None,
+        "message": "暂无分析结果",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/analysis-status")
+async def get_analysis_status():
+    """获取AI分析状态"""
+    return {
+        "status": "success",
+        "is_analyzing": controller._is_analyzing,
+        "current_round": controller.current_round,
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 # ============ WebSocket端点 ============

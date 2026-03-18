@@ -388,27 +388,3 @@ body {
   cursor: not-allowed;
 }
 
-/* Next Round Button */
-.next-round-btn {
-  padding: 12px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--text-primary);
-  backdrop-filter: blur(4px);
-}
-
-.next-round-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.15);
-  transform: translateY(-1px);
-}
-
-.next-round-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}

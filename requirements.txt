@@ -9,5 +9,6 @@ funasr>=1.0.0
 modelscope>=1.10.0
 paddlepaddle>=3.2.0
 paddleocr[doc-parser]
-langchain<0.2.0
-langchain-community<0.2.0
+openai>=1.30.0
+langgraph>=0.0.40
+python-dotenv>=1.0.0
