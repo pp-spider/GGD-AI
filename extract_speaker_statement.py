@@ -263,17 +263,8 @@ class GooseGooseDuckAudioAnalyzer:
         except KeyboardInterrupt:
             print("停止录制")
         finally:
-            # 处理剩余语音（使用当前玩家）
-            buffer_to_process = None
-            with self._buffer_lock:
-                if self._audio_buffer:
-                    buffer_to_process = self._audio_buffer.copy()
-                    self._audio_buffer = []
-
-            if buffer_to_process:
-                speaker = self.get_speaker()
-                self._process_speech(buffer_to_process, speaker)
-
+            # 注意：剩余语音的处理移到 stop() 方法中统一处理
+            # 避免 finally 块和 _flush_remaining_buffer 重复处理或遗漏
             stream.stop_stream()
             stream.close()
             p.terminate()
@@ -311,6 +302,8 @@ class GooseGooseDuckAudioAnalyzer:
         Args:
             round_num: 当前轮数
         """
+        import time
+
         buffer_to_process = None
         with self._buffer_lock:
             if self._audio_buffer:
@@ -321,9 +314,17 @@ class GooseGooseDuckAudioAnalyzer:
 
         if buffer_to_process:
             speaker = self.get_speaker()
+            duration = len(buffer_to_process) * self.chunk / self.rate
+            print(f"[AudioAnalyzer] 识别最后一段语音，发言人: {speaker}, 时长: {duration:.2f}s, 轮数: {round_num}")
+
             # 同步处理，确保在stop返回前完成识别
+            start_time = time.time()
             self._process_speech(buffer_to_process, speaker, round_num)
-            print(f"[AudioAnalyzer] 剩余语音处理完成，发言人: {speaker}")
+            elapsed = time.time() - start_time
+
+            print(f"[AudioAnalyzer] 最后一段语音识别完成，耗时: {elapsed:.2f}s")
+        else:
+            print("[AudioAnalyzer] 缓冲区为空，无需处理剩余语音")
 
     def save_log(self, filename="game_analysis.json"):
         """手动保存日志"""

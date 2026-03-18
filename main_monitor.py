@@ -119,7 +119,7 @@ class GooseGooseDuckMonitor:
         try:
             # 导入提取模块（延迟导入，避免循环依赖）
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            from src.player_id_extractor import extract_player_info_kimi
+            from src.player_id_extractor import extract_player_info
 
             # 截图
             if not self.screen_monitor:
@@ -138,19 +138,19 @@ class GooseGooseDuckMonitor:
                 return False
 
             print(f"[PlayerInfo] 截图完成，尺寸: {img.shape}, 耗时: {capture_time:.2f}s")
-            print("[PlayerInfo] 正在使用 Kimi AI 提取玩家信息...")
-            kimi_start = time.time()
-            player_list = extract_player_info_kimi(img, timeout=20.0)  # 设置20秒超时
-            kimi_time = time.time() - kimi_start
+            print("[PlayerInfo] 正在使用 AI 提取玩家信息...")
+            start = time.time()
+            player_list = extract_player_info(img, timeout=20.0)  # 设置20秒超时
+            ex_time = time.time() - start
 
             with self._lock:
                 if player_list:
                     self.player_info_map = {p['id']: p['name'] for p in player_list if p.get('id')}
-                    print(f"[PlayerInfo] 已提取 {len(player_list)} 位玩家信息 (Kimi耗时: {kimi_time:.2f}s)")
+                    print(f"[PlayerInfo] 已提取 {len(player_list)} 位玩家信息 (耗时: {ex_time:.2f}s)")
                     for p in player_list:
                         print(f"  - ID: {p['id']}, 名称: {p['name']}")
                 else:
-                    print(f"[PlayerInfo] 未能提取到玩家信息（Kimi耗时: {kimi_time:.2f}s，可能超时或API错误）")
+                    print(f"[PlayerInfo] 未能提取到玩家信息（耗时: {ex_time:.2f}s，可能超时或API错误）")
 
             total_time = time.time() - start_time
             print(f"[PlayerInfo] 提取流程总耗时: {total_time:.2f}s")
@@ -255,16 +255,19 @@ class GooseGooseDuckMonitor:
 
     def stop(self):
         """停止监控"""
-        print("\n正在停止监控...")
+        print("\n[Main] 正在停止监控...")
         self.is_running = False
 
         if self.screen_monitor:
+            print("[Main] 停止画面监控...")
             self.screen_monitor.stop()
             print("[Main] 画面监控已停止")
 
         if self.audio_analyzer:
+            print(f"[Main] 停止语音监控并识别最后一段语音（第{self.current_round}轮）...")
             # 停止录音并触发最后剩余语音的识别（传入当前轮数）
             self.audio_analyzer.stop(round_num=self.current_round)
+            print("[Main] 保存语音记录...")
             self.audio_analyzer.save_log()
             print("[Main] 语音监控已停止，数据已保存")
 

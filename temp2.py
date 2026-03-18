@@ -10,7 +10,7 @@ client = OpenAI(
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
 )
 
-# 在这里，你需要将 kimi.png 文件替换为你想让 Kimi 识别的图片的地址
+
 image_path = "./test_imgs/temp1.png"
 
 with open(image_path, "rb") as f:

@@ -127,7 +127,8 @@ class ScreenCapture:
     def release(self):
         """释放资源"""
         if self._bitmap:
-            self._bitmap.DeleteObject()
+            import win32gui
+            win32gui.DeleteObject(self._bitmap.GetHandle())
             self._bitmap = None
         if self._mem_dc:
             self._mem_dc.DeleteDC()

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Kimi AI 玩家信息提取模块
+AI 玩家信息提取模块
 
-使用 Moonshot AI (Kimi) API 从游戏截图中提取玩家ID和名称
+使用 Moonshot AI API 从游戏截图中提取玩家ID和名称
 """
 
 import os
@@ -16,9 +16,9 @@ import cv2
 from openai import OpenAI
 
 # 从环境变量读取配置
-KIMI_API_KEY = os.environ.get("QWEN_API_KEY")
-KIMI_API_BASE = os.environ.get("QWEN_BASE_URL")
-KIMI_MODEL = os.environ.get("QWEN_MODEL")
+API_KEY = os.environ.get("QWEN_API_KEY")
+API_BASE = os.environ.get("QWEN_BASE_URL")
+MODEL = os.environ.get("QWEN_MODEL")
 
 SYSTEM_PROMPT = """
 你是游戏玩家ID提取器，从鹅鸭杀游戏截图中提取左侧玩家列表的ID和名称。
@@ -56,9 +56,9 @@ def encode_image_to_base64(image_array: np.ndarray, max_size: tuple = (1920, 108
     return f"data:image/jpeg;base64,{base64_str}"
 
 
-def extract_player_info_kimi(image_array: np.ndarray, timeout: float = 15.0) -> List[Dict[str, str]]:
+def extract_player_info(image_array: np.ndarray, timeout: float = 15.0) -> List[Dict[str, str]]:
     """
-    使用Kimi AI从游戏截图中提取玩家ID和名称
+    使用AI从游戏截图中提取玩家ID和名称
 
     Args:
         image_array: 截图图像数组 (BGR格式)
@@ -67,26 +67,26 @@ def extract_player_info_kimi(image_array: np.ndarray, timeout: float = 15.0) -> 
     Returns:
         List[Dict]: 玩家列表 [{"id": "01", "name": "小明"}, ...]
     """
-    if not KIMI_API_KEY:
-        print("[KimiExtractor] 警告: 未设置KIMI_API_KEY环境变量")
+    if not API_KEY:
+        print("[Extractor] 警告: 未设置API_KEY环境变量")
         return []
 
     import time
     start_time = time.time()
 
     try:
-        print(f"[KimiExtractor] 初始化客户端...")
-        client = OpenAI(api_key=KIMI_API_KEY, base_url=KIMI_API_BASE, timeout=timeout)
+        print(f"[Extractor] 初始化客户端...")
+        client = OpenAI(api_key=API_KEY, base_url=API_BASE, timeout=timeout)
 
-        print(f"[KimiExtractor] 编码图像...")
+        print(f"[Extractor] 编码图像...")
         image_url = encode_image_to_base64(image_array)
-        print(f"[KimiExtractor] 图像大小: {len(image_url)} 字符")
+        print(f"[Extractor] 图像大小: {len(image_url)} 字符")
 
-        print(f"[KimiExtractor] 调用Kimi API (模型: {KIMI_MODEL}, 超时: {timeout}s)...")
+        print(f"[Extractor] 调用 API (模型: {MODEL}, 超时: {timeout}s)...")
         api_start = time.time()
 
         completion = client.chat.completions.create(
-            model=KIMI_MODEL,
+            model=MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
@@ -100,23 +100,23 @@ def extract_player_info_kimi(image_array: np.ndarray, timeout: float = 15.0) -> 
         )
 
         api_time = time.time() - api_start
-        print(f"[KimiExtractor] API调用完成，耗时: {api_time:.2f}s")
+        print(f"[Extractor] API调用完成，耗时: {api_time:.2f}s")
 
         response_text = completion.choices[0].message.content
-        result = parse_kimi_response(response_text)
+        result = parse_model_response(response_text)
 
         total_time = time.time() - start_time
-        print(f"[KimiExtractor] 提取完成，共 {len(result)} 位玩家，总耗时: {total_time:.2f}s")
+        print(f"[Extractor] 提取完成，共 {len(result)} 位玩家，总耗时: {total_time:.2f}s")
         return result
 
     except Exception as e:
         total_time = time.time() - start_time
-        print(f"[KimiExtractor] 提取失败 (耗时: {total_time:.2f}s): {e}")
+        print(f"[Extractor] 提取失败 (耗时: {total_time:.2f}s): {e}")
         return []
 
 
-def parse_kimi_response(text: str) -> List[Dict[str, str]]:
-    """解析Kimi返回的markdown JSON"""
+def parse_model_response(text: str) -> List[Dict[str, str]]:
+    """解析返回的markdown JSON"""
     # 提取 ```json ... ``` 中的内容
     pattern = r'```(?:json)?\s*([\s\S]*?)\s*```'
     match = re.search(pattern, text)
@@ -133,33 +133,33 @@ def parse_kimi_response(text: str) -> List[Dict[str, str]]:
                     for p in data if p.get("id")]
         return []
     except json.JSONDecodeError as e:
-        print(f"[KimiExtractor] JSON解析失败: {e}")
+        print(f"[Extractor] JSON解析失败: {e}")
         return []
 
 
-def verify_id_match(template_id: str, kimi_id: str) -> bool:
-    """验证模板匹配ID和Kimi ID是否一致"""
+def verify_id_match(template_id: str, ai_id: str) -> bool:
+    """验证模板匹配ID和 ID是否一致"""
     # 去除前导零比较
     t_num = template_id.lstrip('0') or '0'
-    k_num = kimi_id.lstrip('0') or '0'
+    k_num = ai_id.lstrip('0') or '0'
     return t_num == k_num
 
 
-def verify_and_merge_ids(template_id: Optional[str], kimi_results: List[Dict]) -> Optional[Dict[str, str]]:
+def verify_and_merge_ids(template_id: Optional[str], ai_results: List[Dict]) -> Optional[Dict[str, str]]:
     """
-    校验模板匹配的ID与Kimi结果，返回匹配的玩家信息
+    校验模板匹配的ID与结果，返回匹配的玩家信息
 
     Args:
         template_id: 模板匹配提取的玩家ID (如 "01", "02")
-        kimi_results: Kimi提取的玩家列表
+        ai_results: 提取的玩家列表
 
     Returns:
         Dict[str, str] or None: 匹配的玩家信息 {"id": "01", "name": "小明"}
     """
-    if not template_id or not kimi_results:
+    if not template_id or not ai_results:
         return None
 
-    for player in kimi_results:
+    for player in ai_results:
         if verify_id_match(template_id, player.get("id", "")):
             return player
 
@@ -182,8 +182,8 @@ if __name__ == "__main__":
         img = capture.capture()
 
         if img is not None:
-            print("正在使用Kimi AI提取玩家信息...")
-            players = extract_player_info_kimi(img)
+            print("正在使用AI提取玩家信息...")
+            players = extract_player_info(img)
             print(f"提取到 {len(players)} 位玩家:")
             for p in players:
                 print(f"  ID: {p['id']}, 名称: {p['name']}")

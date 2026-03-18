@@ -529,13 +529,22 @@ class MonitorController:
 
             try:
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.monitor.stop)
+                logger.info("[Stop] 开始停止监控...")
 
+                # 执行停止（包含最后一段语音的识别）
+                await loop.run_in_executor(None, self.monitor.stop)
+                logger.info("[Stop] 监控核心已停止")
+
+                # 短暂等待，确保最后一段语音的WebSocket消息被处理
+                logger.info("[Stop] 等待WebSocket消息处理...")
+                await asyncio.sleep(0.5)
+
+                # 广播停止状态
                 await manager.broadcast({
                     "type": "status_change",
                     "data": {"status": "stopped"}
                 })
-                logger.info("监控已停止")
+                logger.info("[Stop] 停止状态已广播")
 
                 # 检查是否有记录，如果有则触发AI分析
                 if self.monitor.audio_analyzer:
@@ -547,9 +556,12 @@ class MonitorController:
                         asyncio.create_task(self.trigger_ai_analysis(self.current_round))
 
                 # 模型保持加载状态，下次启动直接复用
+                logger.info("[Stop] 监控完全停止")
                 return True
             except Exception as e:
-                logger.error(f"停止监控失败: {e}")
+                logger.error(f"[Stop] 停止监控失败: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
                 raise HTTPException(status_code=500, detail=f"停止监控失败: {str(e)}")
 
     def get_records(self) -> List[Dict[str, Any]]:

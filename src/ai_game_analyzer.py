@@ -3,7 +3,7 @@
 """
 鹅鸭杀游戏AI分析模块
 
-基于LangGraph和Kimi大模型实现，分析玩家发言记录，推理身份关系。
+基于LangGraph实现，分析玩家发言记录，推理身份关系。
 """
 
 import os
@@ -89,7 +89,7 @@ class AnalysisState(TypedDict):
 
 
 class GooseGooseDuckAIAnalyzer:
-    """鹅鸭杀AI分析器 - 基于Kimi大模型"""
+    """鹅鸭杀AI分析器 - 基于大模型"""
 
     # 系统Prompt
     SYSTEM_PROMPT = """你是一位鹅鸭杀游戏分析专家，擅长通过分析玩家发言来推理身份。
@@ -153,11 +153,12 @@ class GooseGooseDuckAIAnalyzer:
         初始化分析器
 
         Args:
-            api_key: Kimi/OpenAI API密钥，如果不提供则尝试从环境变量获取
-            base_url: API基础URL，用于Kimi等兼容OpenAI接口的服务
+            api_key: /OpenAI API密钥，如果不提供则尝试从环境变量获取
+            base_url: API基础URL，用于等兼容OpenAI接口的服务
         """
-        self.api_key = api_key or os.getenv("KIMI_API_KEY") or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url or os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1")
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+        self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL")
+        self.model = os.getenv("DEEPSEEK_MODEL")
         self._analysis_results: Dict[int, AnalysisResult] = {}
         self._client: Optional[AsyncOpenAI] = None
         self._graph = self._build_graph()
@@ -239,15 +240,15 @@ class GooseGooseDuckAIAnalyzer:
             client = self._get_client()
             if client is None:
                 logger.warning("[LLM] 未配置API密钥")
-                state["error"] = "未配置Kimi API密钥"
+                state["error"] = "未配置 API密钥"
                 return state
 
             prepared_text = state["prepared_text"]
-            logger.info("[LLM] 开始调用Kimi大模型分析...")
+            logger.info("[LLM] 开始调用大模型分析...")
 
-            # 调用Kimi API
+            # 调用 API
             response = await client.chat.completions.create(
-                model="moonshot-v1-32k",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": prepared_text}
@@ -365,8 +366,8 @@ class GooseGooseDuckAIAnalyzer:
 
         # 检查是否有API密钥
         if not self.api_key:
-            logger.warning("[Analyze] 未配置Kimi API密钥")
-            return self._create_fallback_result(records, players, round_num, "未配置Kimi API密钥")
+            logger.warning("[Analyze] 未配置 API密钥")
+            return self._create_fallback_result(records, players, round_num, "未配置 API密钥")
 
         # 初始化状态
         initial_state: AnalysisState = {
@@ -431,7 +432,7 @@ class GooseGooseDuckAIAnalyzer:
             timestamp=datetime.now().isoformat(),
             playerAnalysis=player_analysis_list,
             relationshipMap=[],
-            summary=f"第{round_num}轮AI分析失败。{error_msg}" if error_msg else f"第{round_num}轮分析失败，请检查Kimi API配置。"
+            summary=f"第{round_num}轮AI分析失败。{error_msg}" if error_msg else f"第{round_num}轮分析失败，请检查 API配置。"
         )
 
     def get_cached_result(self, round_num: int) -> Optional[AnalysisResult]:
