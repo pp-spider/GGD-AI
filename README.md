@@ -479,7 +479,7 @@ GGD-AI/
 ---
 
 <p align="center">
-  Made with ❤️ by GGD-AI Team
+  Made with ❤️ by LRL
 </p>
 
 ---
