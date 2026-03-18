@@ -6,13 +6,19 @@ GGD-AI FastAPI HTTP/WebSocket服务
 提供REST API和WebSocket实时通信接口
 """
 
+# 先配置日志（必须在其他导入之前）
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
 import json
-import logging
 import sys
 import os
 from datetime import datetime
@@ -29,11 +35,6 @@ from extract_speaker_statement import GooseGooseDuckAudioAnalyzer
 from funasr import AutoModel
 from src.ai_game_analyzer import analyze_game_round, get_analyzer
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
