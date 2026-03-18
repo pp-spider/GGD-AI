@@ -11,7 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 template_path = os.path.join(BASE_DIR, 'template_imgs')
 
 # 全局配置：默认使用模板匹配，可选 'template' 或 'ocr'
-RECOGNITION_MODE = 'template'
+RECOGNITION_MODE = 'ocr'
 
 # 加载所有模板（全局缓存）
 _templates = None
@@ -91,20 +91,12 @@ def _extract_text_from_result(result) -> List[Dict]:
     texts = []
 
     # 从 parsing_res_list 中提取文本
-    if hasattr(result, 'parsing_res_list') and result.parsing_res_list:
-        for item in result.parsing_res_list:
-            if hasattr(item, 'content'):
-                texts.append({
-                    'text': item.content.strip(),
-                    'bbox': getattr(item, 'bbox', None),
-                })
-    # 兼容字典格式
-    elif isinstance(result, dict) and result.get('parsing_res_list'):
+    if result.get('parsing_res_list'):
         for item in result['parsing_res_list']:
-            if isinstance(item, dict) and 'content' in item:
+            if getattr(item, 'content', ''):
                 texts.append({
-                    'text': item['content'].strip(),
-                    'bbox': item.get('bbox', None),
+                    'text': getattr(item, 'content', ''),
+                    'bbox': getattr(item, 'bbox', None),
                 })
     return texts
 
@@ -123,11 +115,6 @@ def _recognize_image_ocr(img_array: np.ndarray) -> List[Dict]:
     if pipeline is None:
         return []
 
-    # 保存为临时文件
-    temp_dir = os.path.join(BASE_DIR, 'temp_images')
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, f'ocr_{int(time.time()*1000)}.png')
-
     try:
         # OCR 需要 BGR 格式，将灰度转为 BGR
         if len(img_array.shape) == 2:
@@ -135,9 +122,8 @@ def _recognize_image_ocr(img_array: np.ndarray) -> List[Dict]:
         else:
             img_bgr = img_array
 
-        cv2.imwrite(temp_path, img_bgr)
         start = time.time()
-        output = pipeline.predict(temp_path)
+        output = pipeline.predict(img_bgr)
         end = time.time()
         print(f"[OCR] 识别耗时：{end-start:.3f}s")
 
@@ -150,14 +136,6 @@ def _recognize_image_ocr(img_array: np.ndarray) -> List[Dict]:
     except Exception as e:
         print(f"[OCR] 识别失败: {e}")
         return []
-    finally:
-        # 清理临时文件
-        if os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except:
-                pass
-
 
 def _recognize_image_template(card_top: np.ndarray) -> Optional[str]:
     """
@@ -197,7 +175,7 @@ def _recognize_image_template(card_top: np.ndarray) -> Optional[str]:
     return None
 
 
-def extract_player_num_from_array(img, save_debug=True, debug_prefix=""):
+def extract_player_num_from_array(img, save_debug=False, debug_prefix=""):
     """
     从图像数组中提取玩家数字
 
@@ -238,30 +216,19 @@ def extract_player_num_from_array(img, save_debug=True, debug_prefix=""):
             if save_debug:
                 temp_dir = os.path.join(BASE_DIR, 'temp_images')
                 os.makedirs(temp_dir, exist_ok=True)
-                cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}.png'), img_gray[y:y + h, x:x + w])
+                cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}.png'), binary_otsu[y:y + h, x:x + w])
                 cv2.imwrite(os.path.join(temp_dir, f'{debug_prefix}_card_{i}_.png'),
-                           img_gray[y:int(y + h*0.3), x:int(x + w*0.15)])
+                           binary_otsu[y:int(y + h*0.3), x:int(x + w*0.15)])
 
             # 在卡片顶部区域进行识别（左上角区域，包含玩家编号）
-            card_top = img_gray[y:int(y + h*0.3), x:int(x + w*0.15)]
+            card_top = binary_otsu[y:int(y + h*0.3), x:int(x + w*0.15)]
 
             try:
                 if RECOGNITION_MODE == 'ocr':
                     # 使用 OCR 识别
-                    results = _recognize_image_ocr(card_top)
+                    results = _recognize_image_ocr(img_gray[y:int(y + h*0.3), x:x + w])
                     if not results:
                         return None
-
-                    # 从 OCR 结果中提取数字
-                    for result in results:
-                        text = result.get('text', '').strip()
-                        # 使用正则提取开头的数字
-                        match = re.search(r'^(\d{1,2})', text)
-                        if match:
-                            num = int(match.group(1))
-                            if 1 <= num <= 16:
-                                return f"{num:02d}"
-                    # 如果没有匹配到数字，返回原始文本
                     return results[0].get('text', '')
                 else:
                     # 默认使用模板匹配
@@ -273,7 +240,7 @@ def extract_player_num_from_array(img, save_debug=True, debug_prefix=""):
     return None
 
 
-def extract_player_num(image_path):
+def extract_player_num(image_path, save_debug=False):
     """
     从图像文件路径提取玩家数字
 
@@ -282,6 +249,8 @@ def extract_player_num(image_path):
 
     Returns:
         str: 识别到的数字，未识别返回 None
+        :param image_path:
+        :param save_debug:
     """
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if img is None:
@@ -289,7 +258,7 @@ def extract_player_num(image_path):
         return None
 
     file_name = os.path.basename(image_path)
-    return extract_player_num_from_array(img, save_debug=False, debug_prefix=file_name.split(".")[0])
+    return extract_player_num_from_array(img, save_debug=save_debug, debug_prefix=file_name.split(".")[0])
 
 
 class SpeakerDigitMonitor:
@@ -383,7 +352,7 @@ if __name__ == "__main__":
         print(f"当前识别模式: {RECOGNITION_MODE}")
         for ii in os.listdir(test_imgs_dir):
             img_path = os.path.join(test_imgs_dir, ii)
-            num = extract_player_num(img_path)
+            num = extract_player_num(img_path, save_debug=False)
             print(f'{img_path}：{num}')
     else:
         print(f"测试目录不存在: {test_imgs_dir}")
