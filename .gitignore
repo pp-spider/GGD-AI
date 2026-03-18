@@ -12,6 +12,9 @@ build/
 __pycache__/
 *.pyc
 .env
+temp.py
+temp2.py
+temp3.py
 
 # Test files
 test_audio/*.wav
@@ -20,3 +23,5 @@ test_audio/*.wav
 /src-tauri/target/
 /src-tauri/Cargo.lock
 /src-tauri/gen/
+/test_imgs/
+/test_audio/
