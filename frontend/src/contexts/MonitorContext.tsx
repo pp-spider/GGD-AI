@@ -46,7 +46,7 @@ const MonitorContext = createContext<MonitorContextValue | null>(null);
 export function MonitorProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState("正在加载语音识别模型...");
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [currentRound, setCurrentRound] = useState(0);
+  const [currentRound, setCurrentRound] = useState(1);
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
   const [windowTitle, setWindowTitle] = useState<string | null>(null);
@@ -148,7 +148,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
         // 限制集合大小，防止内存泄漏
         if (processedMessagesRef.current.size > 1000) {
           const iterator = processedMessagesRef.current.values();
-          processedMessagesRef.current.delete(iterator.next().value);
+          processedMessagesRef.current.delete(iterator.next().value as string);
         }
 
         console.log("[MonitorContext] 新发言记录 - 添加到列表:", msg.data);
@@ -170,7 +170,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
         console.log("[MonitorContext] 状态更新:", msg.data);
         setIsMonitoring(msg.data.is_running);
         setCurrentSpeaker(msg.data.current_speaker);
-        if (msg.data.current_round) {
+        if (msg.data.current_round != null) {
           console.log("[MonitorContext] status消息设置currentRound:", msg.data.current_round);
           setCurrentRound(msg.data.current_round);
         }
@@ -180,7 +180,7 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
       } else if (msg.type === "status_change") {
         console.log("[MonitorContext] 状态变化:", msg.data);
         setIsMonitoring(msg.data.status === "running");
-        if (msg.data.round) {
+        if (msg.data.round != null) {
           console.log("[MonitorContext] status_change消息设置currentRound:", msg.data.round);
           setCurrentRound(msg.data.round);
         }
@@ -297,6 +297,12 @@ export function MonitorProvider({ children }: { children: React.ReactNode }) {
       setIsMonitoring(false);
       setCurrentSpeaker(null);
       // 停止后会自动触发AI分析，无需手动调用
+      // 递增轮次，为下一轮做准备
+      setCurrentRound((prev) => {
+        const nextRound = prev + 1;
+        console.log("[MonitorContext] 停止后递增轮次:", prev, "->", nextRound);
+        return nextRound;
+      });
     } catch (error) {
       console.error("[MonitorContext] 停止监听失败:", error);
     }
